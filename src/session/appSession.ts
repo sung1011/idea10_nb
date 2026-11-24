@@ -38,15 +38,14 @@ export type AppState = {
 }
 
 export function hasRoundProgress(state: AppState): boolean {
+  if (state.settled) return false
   return (
-    state.view === 'practice' &&
-    !state.settled &&
-    (state.index > 0 ||
-      state.input !== '' ||
-      state.showHint ||
-      state.hintThisRound > 0 ||
-      state.feedback === 'wrong' ||
-      state.wrongOnce.some(Boolean))
+    state.index > 0 ||
+    state.input !== '' ||
+    state.showHint ||
+    state.hintThisRound > 0 ||
+    state.feedback === 'wrong' ||
+    state.wrongOnce.some(Boolean)
   )
 }
 

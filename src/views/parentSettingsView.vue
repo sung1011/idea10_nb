@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import versionRow from '../components/versionRow.vue'
+import type { VersionGroup } from '../logic/appVersion'
+import type { InstallKind } from '../logic/installPrompt'
 import type { Mode } from '../logic/makeProblem'
+
+type SettingsTab = 'topic' | 'update'
 
 defineProps<{
   mode: Mode
@@ -8,6 +14,14 @@ defineProps<{
   hintUsed: number
   storageMessage: string
   resetConfirming: boolean
+  buildVersion: string
+  pending: VersionGroup[]
+  history: VersionGroup[]
+  confirming: boolean
+  showInstall: boolean
+  installKind: InstallKind
+  installGuide: string
+  installBusy: boolean
 }>()
 
 const emit = defineEmits<{
@@ -16,8 +30,12 @@ const emit = defineEmits<{
   resetAsk: []
   resetCancel: []
   resetConfirm: []
+  update: []
+  cancelUpdate: []
+  install: []
 }>()
 
+const tab = ref<SettingsTab>('topic')
 const modes: { id: Mode; label: string }[] = [
   { id: 'add', label: '加法' },
   { id: 'sub', label: '减法' },
@@ -28,45 +46,115 @@ const modes: { id: Mode; label: string }[] = [
 <template>
   <section class="settings">
     <header class="head">
-      <h1>家长设置</h1>
+      <div class="tabs" role="tablist" aria-label="设置">
+        <button
+          type="button"
+          class="tab"
+          :class="{ on: tab === 'topic' }"
+          role="tab"
+          :aria-selected="tab === 'topic'"
+          @click="tab = 'topic'"
+        >
+          题目
+        </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ on: tab === 'update' }"
+          role="tab"
+          :aria-selected="tab === 'update'"
+          @click="tab = 'update'"
+        >
+          更新
+        </button>
+      </div>
       <button type="button" class="back" @click="emit('close')">返回</button>
     </header>
 
-    <p class="label">题目</p>
-    <div class="modes" role="radiogroup" aria-label="题目类型">
-      <button
-        v-for="item in modes"
-        :key="item.id"
-        type="button"
-        class="chip"
-        :class="{ on: mode === item.id }"
-        :aria-pressed="mode === item.id"
-        @click="emit('mode', item.id)"
-      >
-        {{ item.label }}
-      </button>
+    <div v-if="tab === 'topic'">
+      <p class="label">题目</p>
+      <div class="modes" role="radiogroup" aria-label="题目类型">
+        <button
+          v-for="item in modes"
+          :key="item.id"
+          type="button"
+          class="chip"
+          :class="{ on: mode === item.id }"
+          :aria-pressed="mode === item.id"
+          @click="emit('mode', item.id)"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+
+      <p class="label">范围</p>
+      <p class="locked">10 以内（首版）</p>
+
+      <p class="label">本机记录</p>
+      <ul class="stats">
+        <li>练习次数 {{ roundsCompleted }}</li>
+        <li>首次答对 {{ firstTryCorrect }}</li>
+        <li>使用提示 {{ hintUsed }}</li>
+      </ul>
+      <p v-if="storageMessage" class="warn">{{ storageMessage }}</p>
+
+      <template v-if="!resetConfirming">
+        <button type="button" class="danger" @click="emit('resetAsk')">重置本应用数据</button>
+      </template>
+      <div v-else class="confirm">
+        <p>只清除本应用在这台设备上的练习记录和设置，不能恢复。</p>
+        <div class="row">
+          <button type="button" class="ghost" @click="emit('resetCancel')">取消</button>
+          <button type="button" class="danger" @click="emit('resetConfirm')">确认重置</button>
+        </div>
+      </div>
     </div>
 
-    <p class="label">范围</p>
-    <p class="locked">10 以内（首版）</p>
-
-    <p class="label">本机记录</p>
-    <ul class="stats">
-      <li>练习次数 {{ roundsCompleted }}</li>
-      <li>首次答对 {{ firstTryCorrect }}</li>
-      <li>使用提示 {{ hintUsed }}</li>
-    </ul>
-    <p v-if="storageMessage" class="warn">{{ storageMessage }}</p>
-
-    <template v-if="!resetConfirming">
-      <button type="button" class="danger" @click="emit('resetAsk')">重置本应用数据</button>
-    </template>
-    <div v-else class="confirm">
-      <p>只清除本应用在这台设备上的练习记录和设置，不能恢复。</p>
-      <div class="row">
-        <button type="button" class="ghost" @click="emit('resetCancel')">取消</button>
-        <button type="button" class="danger" @click="emit('resetConfirm')">确认重置</button>
+    <div v-else class="update-pane">
+      <p class="label">当前版本 {{ buildVersion }}</p>
+      <p v-if="pending.length === 0" class="locked">已是最新</p>
+      <div v-else class="update-box">
+        <template v-if="!confirming">
+          <button type="button" class="install" @click="emit('update')">更新</button>
+        </template>
+        <template v-else>
+          <p class="warn">当前这轮会重新开始，已完成的练习次数还在。</p>
+          <div class="row">
+            <button type="button" class="ghost" @click="emit('cancelUpdate')">取消</button>
+            <button type="button" class="install" @click="emit('update')">确定更新</button>
+          </div>
+        </template>
+        <version-row
+          v-for="group in pending"
+          :key="`pending-${group.version}`"
+          :version="group.version"
+          :date="group.date"
+          :summaries="group.summaries"
+        />
       </div>
+
+      <p class="label">更新说明</p>
+      <version-row
+        v-for="group in history"
+        :key="group.version"
+        :version="group.version"
+        :date="group.date"
+        :summaries="group.version === buildVersion ? ['当前版本', ...group.summaries] : group.summaries"
+      />
+      <p v-if="history.length === 0" class="locked">暂时还没有更新说明。</p>
+
+      <template v-if="showInstall">
+        <p class="label">安装到桌面</p>
+        <button
+          type="button"
+          class="install"
+          :disabled="installBusy"
+          @click="emit('install')"
+        >
+          安装到桌面
+        </button>
+        <p class="hint" :data-install-kind="installKind">{{ installGuide }}</p>
+      </template>
     </div>
   </section>
 </template>
@@ -84,17 +172,13 @@ const modes: { id: Mode; label: string }[] = [
   gap: 12px;
 }
 
-h1,
 .label,
 .locked,
 .stats,
 .warn,
-.confirm p {
+.confirm p,
+.hint {
   margin: 0;
-}
-
-h1 {
-  font-size: 1.5rem;
 }
 
 .label {
@@ -102,10 +186,19 @@ h1 {
   font-weight: 800;
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+}
+
 .back,
 .chip,
 .danger,
-.ghost {
+.ghost,
+.tab,
+.install {
   min-height: 48px;
   padding: 8px 14px;
   border: 3px solid var(--line);
@@ -114,15 +207,16 @@ h1 {
   font-weight: 800;
 }
 
+.tab.on,
+.chip.on {
+  background: var(--teal);
+  color: #fff;
+}
+
 .modes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-}
-
-.chip.on {
-  background: var(--teal);
-  color: #fff;
 }
 
 .locked,
@@ -146,8 +240,20 @@ h1 {
   font-weight: 700;
 }
 
+.hint {
+  color: var(--muted);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .danger {
   background: var(--coral);
+  color: #fff;
+}
+
+.install {
+  width: 100%;
+  background: var(--teal);
   color: #fff;
 }
 
@@ -156,5 +262,18 @@ h1 {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 8px;
+}
+
+.update-pane,
+.update-box {
+  display: grid;
+  gap: 10px;
+}
+
+.update-box {
+  padding: 8px;
+  border: 3px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
 }
 </style>

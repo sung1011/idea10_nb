@@ -30,6 +30,16 @@ describe('版本检测', () => {
     expect(checker.pending.value).toEqual([])
   })
 
+  it('history 是全部分组，pending 只含比构建新的', async () => {
+    const checker = createVersionChecker({
+      buildVersion: '0.2.0',
+      fetch: async () => jsonResponse(remote),
+    })
+    await checker.refresh()
+    expect(checker.history.value.map((item) => item.version)).toEqual(['0.3.0', '0.2.0'])
+    expect(checker.pending.value.map((item) => item.version)).toEqual(['0.3.0'])
+  })
+
   it('当前构建已是最新则不弹，即使没有 ack', () => {
     const checker = createVersionChecker({
       buildVersion: '0.2.0',

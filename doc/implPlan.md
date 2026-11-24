@@ -8,7 +8,8 @@
 - `src/storage/appStorage.ts` 键 `idea10Nb.v1`；损坏不覆盖；写失败不假报
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
 - `src/session/appSession.ts` 练习 / 完成 / 设置状态机
-- `src/views/` 三视图；`src/components/` 键盘、积木、贴纸、更新框
+- `src/views/` 三视图；设置内页签「题目」「更新」；`src/components/` 键盘、积木、贴纸、更新框
+- `src/composables/useInstallPrompt.ts` 缓存 `beforeinstallprompt`，不注册 Service Worker
 - `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`
 - `yiqisuan-assets/approved-app-icon.jpg` 用户确认的主图标原图；`scripts/makeIcons.sh` 只做高质量缩放转 PNG
 
@@ -34,6 +35,7 @@
 - `display: standalone`，`id` / `start_url` / `scope` 均为 `/idea10_nb/`
 - 主题色与背景色 `#fff4e4`
 - 仍需联网加载；不加离线缓存
+- 设置「更新」页未处于独立窗口时显示「安装到桌面」；有系统安装事件才 `prompt()`，否则给平台指引
 
 ## 部署
 

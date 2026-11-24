@@ -4,8 +4,8 @@ import app from './app.vue'
 import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
-  { id: 'v0.4.0', version: '0.4.0', date: '2026-11-26', summary: '测试用更新' },
-  { id: 'v0.3.0', version: '0.3.0', date: '2026-11-24', summary: '桌面图标' },
+  { id: 'v0.5.0', version: '0.5.0', date: '2026-11-26', summary: '测试用更新' },
+  { id: 'v0.4.0', version: '0.4.0', date: '2026-11-24', summary: '设置页签' },
 ]
 
 function mountApp() {
@@ -48,7 +48,7 @@ describe('界面响应', () => {
     vi.restoreAllMocks()
   })
 
-  it('点数字后答案格会变，设置页能打开', async () => {
+  it('点数字后答案格会变，设置页默认题目，切更新后返回仍保留输入', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
     expect(el.textContent).toContain('第 1 / 10 题')
@@ -60,8 +60,23 @@ describe('界面响应', () => {
 
     button(el, '设置').click()
     await nextTick()
-    expect(el.textContent).toContain('家长设置')
+    expect(el.textContent).toContain('题目')
+    expect(el.textContent).toContain('更新')
     expect(el.textContent).toContain('练习次数')
+    expect(el.textContent).toContain('加法')
+
+    button(el, '更新').click()
+    await flush()
+    expect(el.textContent).toContain('当前版本')
+    expect(el.textContent).toContain('安装到桌面')
+    expect(el.querySelector('[data-install-kind]')).toBeTruthy()
+
+    button(el, '题目').click()
+    await nextTick()
+    expect(el.textContent).toContain('练习次数')
+    button(el, '返回').click()
+    await nextTick()
+    expect(el.querySelector('.blank')?.textContent).toBe('3')
     vueApp.unmount()
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
@@ -74,7 +89,7 @@ describe('界面响应', () => {
     const { el, vueApp } = mountApp()
     await flush()
     expect(el.textContent).toContain('更新')
-    expect(el.textContent).toContain('0.4.0')
+    expect(el.textContent).toContain('0.5.0')
     expect(el.querySelector('.popover')).toBeTruthy()
     expect(el.querySelector('.sticky')?.textContent).toContain('更新')
     expect([...el.querySelectorAll('button')].some((node) => node.textContent?.trim() === '3')).toBe(true)
@@ -82,7 +97,7 @@ describe('界面响应', () => {
     button(el, '设置').click()
     await nextTick()
     expect(el.querySelector('.popover')).toBeNull()
-    expect(el.textContent).toContain('家长设置')
+    expect(el.textContent).toContain('题目')
 
     button(el, '返回').click()
     await nextTick()
@@ -119,6 +134,35 @@ describe('界面响应', () => {
     button(el, '确定更新').click()
     await nextTick()
     expect(replaced.some((href) => href.includes('_reload='))).toBe(true)
+    vueApp.unmount()
+  })
+
+  it('设置的更新页对未完成轮次也要确认', async () => {
+    const replaced: string[] = []
+    vi.spyOn(window.location, 'replace').mockImplementation((url) => {
+      replaced.push(String(url))
+    })
+    const { el, vueApp } = mountApp()
+    await flush()
+    button(el, '3').click()
+    await nextTick()
+    button(el, '设置').click()
+    await nextTick()
+    button(el, '更新').click()
+    await flush()
+    const action = el.querySelector('.update-box .install') as HTMLButtonElement | null
+    expect(action?.textContent?.trim()).toBe('更新')
+    action?.click()
+    await nextTick()
+    expect(el.textContent).toContain('当前这轮会重新开始')
+    expect(replaced).toEqual([])
+    button(el, '取消').click()
+    await nextTick()
+    button(el, '题目').click()
+    await nextTick()
+    button(el, '返回').click()
+    await nextTick()
+    expect(el.querySelector('.blank')?.textContent).toBe('3')
     vueApp.unmount()
   })
 })

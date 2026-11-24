@@ -41,6 +41,7 @@ export function createVersionChecker(options: {
     options.replaceState ?? ((url: string) => window.history.replaceState(null, '', url))
 
   const pending = ref<VersionGroup[]>([])
+  const history = ref<VersionGroup[]>([])
   const confirming = ref(false)
 
   async function refresh() {
@@ -49,7 +50,9 @@ export function createVersionChecker(options: {
       if (!response.ok) return
       const data: unknown = await response.json()
       if (!Array.isArray(data)) return
-      const next = pendingGroups(groupVersions(parseVersions(data)), buildVersion)
+      const groups = groupVersions(parseVersions(data))
+      history.value = groups
+      const next = pendingGroups(groups, buildVersion)
       if (confirming.value && next.length > 0) return
       if (pendingSignature(pending.value) === pendingSignature(next)) {
         if (next.length === 0) confirming.value = false
@@ -87,6 +90,7 @@ export function createVersionChecker(options: {
   return {
     buildVersion,
     pending,
+    history,
     confirming,
     ackKey: ACKED_VERSION_KEY,
     refresh,

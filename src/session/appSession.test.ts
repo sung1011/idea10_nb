@@ -189,6 +189,21 @@ describe('练习会话', () => {
     finishRound(done)
     expect(done.state.view).toBe('complete')
     expect(hasRoundProgress(done.state)).toBe(false)
+    done.openSettings()
+    expect(hasRoundProgress(done.state)).toBe(false)
+  })
+
+  it('进设置不清空输入，设置中未完成轮次仍算进度', () => {
+    const session = createAppSession({ storage: memoryStorage(), rng: mulberry32(22) })
+    session.tapDigit('3')
+    session.openSettings()
+    expect(session.state.view).toBe('settings')
+    expect(session.state.input).toBe('3')
+    expect(hasRoundProgress(session.state)).toBe(true)
+    session.closeSettings()
+    expect(session.state.view).toBe('practice')
+    expect(session.state.input).toBe('3')
+    expect(hasRoundProgress(session.state)).toBe(true)
   })
 
   it('旧 v1 统计存档可继续用，新轮仍是 10 题', () => {

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import updatePopover from './components/updatePopover.vue'
 import { useAppVersions } from './composables/useAppVersions'
+import { useInstallPrompt } from './composables/useInstallPrompt'
 import { createAppSession, hasRoundProgress } from './session/appSession'
 import completeView from './views/completeView.vue'
 import parentSettingsView from './views/parentSettingsView.vue'
@@ -11,7 +12,15 @@ const session = createAppSession()
 const state = reactive(session.state)
 const problem = computed(() => state.problems[state.index])
 const versions = useAppVersions()
-const { pending, confirming, askConfirm, cancelConfirm, applyUpdate } = versions
+const install = useInstallPrompt()
+const { pending, history, confirming, askConfirm, cancelConfirm, applyUpdate } = versions
+const {
+  showInstall,
+  kind: installKind,
+  guide: installGuide,
+  prompting: installBusy,
+  requestInstall,
+} = install
 const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
 
 function onKey(event: KeyboardEvent) {
@@ -43,7 +52,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="gear"
-          aria-label="家长设置"
+          aria-label="设置"
           @click="session.openSettings()"
         >
           设置
@@ -87,11 +96,22 @@ onUnmounted(() => {
       :hint-used="state.stats.hintUsed"
       :storage-message="state.storageMessage"
       :reset-confirming="state.resetConfirming"
+      :build-version="versions.buildVersion"
+      :pending="pending"
+      :history="history"
+      :confirming="confirming"
+      :show-install="showInstall"
+      :install-kind="installKind"
+      :install-guide="installGuide"
+      :install-busy="installBusy"
       @close="session.closeSettings"
       @mode="session.setMode"
       @reset-ask="session.requestReset"
       @reset-cancel="session.cancelReset"
       @reset-confirm="session.confirmReset"
+      @update="onUpdate"
+      @cancel-update="cancelConfirm"
+      @install="requestInstall"
     />
   </div>
 </template>

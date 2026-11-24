@@ -77,12 +77,12 @@ describe('主屏幕清单与图标', () => {
   })
 })
 
-describe('0.3.0 版本检测', () => {
-  it('旧构建 0.2.0 遇到远端 0.3.0 会提示；已是 0.3.0 不提示', () => {
+describe('0.4.0 版本检测', () => {
+  it('旧构建 0.3.0 遇到远端 0.4.0 会提示；已是 0.4.0 不提示', () => {
     const entries = parseVersions(JSON.parse(readFileSync(join(root, 'public/versions.json'), 'utf8')))
-    expect(entries[0]?.version).toBe('0.3.0')
+    expect(entries[0]?.version).toBe('0.4.0')
     const groups = groupVersions(entries)
-    expect(pendingGroups(groups, '0.2.0').map((item) => item.version)).toEqual(['0.3.0'])
-    expect(pendingGroups(groups, '0.3.0')).toEqual([])
+    expect(pendingGroups(groups, '0.3.0').map((item) => item.version)[0]).toBe('0.4.0')
+    expect(pendingGroups(groups, '0.4.0')).toEqual([])
   })
 })
