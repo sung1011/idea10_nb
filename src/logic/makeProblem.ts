@@ -1,5 +1,5 @@
 export const RANGE_MAX = 10
-export const ROUND_SIZE = 5
+export const ROUND_SIZE = 10
 
 export type Mode = 'add' | 'sub' | 'mix'
 export type Op = '+' | '-'
@@ -13,6 +13,11 @@ export type Problem = {
 
 export function problemKey(problem: Problem): string {
   return `${problem.a}${problem.op}${problem.b}`
+}
+
+/** 任一操作数为 0 或答案为 0，如 0+8、3-0、4-4。 */
+export function isZeroRelated(problem: Problem): boolean {
+  return problem.a === 0 || problem.b === 0 || problem.answer === 0
 }
 
 export function allAddProblems(): Problem[] {
@@ -64,19 +69,60 @@ export function sampleUnique<T>(pool: readonly T[], count: number, rng: () => nu
   return shuffle(pool, rng).slice(0, count)
 }
 
+function pickOnePreferNormal(pool: readonly Problem[], rng: () => number): Problem {
+  const normals = pool.filter((item) => !isZeroRelated(item))
+  const source = normals.length > 0 ? normals : pool
+  return sampleUnique(source, 1, rng)[0]!
+}
+
+/** 单次遍历抽样，含 0 题最多 1 道，不因过滤空转。 */
+export function sampleWithZeroCap(
+  pool: readonly Problem[],
+  count: number,
+  rng: () => number,
+  alreadyZero = false,
+): Problem[] {
+  const shuffled = shuffle(pool, rng)
+  const out: Problem[] = []
+  let zeros = alreadyZero ? 1 : 0
+  for (const item of shuffled) {
+    if (out.length >= count) break
+    if (isZeroRelated(item)) {
+      if (zeros >= 1) continue
+      zeros += 1
+    }
+    out.push(item)
+  }
+  if (out.length < count) {
+    for (const item of shuffled) {
+      if (out.length >= count) break
+      if (out.some((picked) => problemKey(picked) === problemKey(item))) continue
+      if (isZeroRelated(item) && zeros >= 1) continue
+      if (isZeroRelated(item)) zeros += 1
+      out.push(item)
+    }
+  }
+  if (out.length < count) {
+    throw new Error(`题库不足：需要 ${count} 题，只抽到 ${out.length} 题`)
+  }
+  return out
+}
+
 export function makeRound(mode: Mode, count = ROUND_SIZE, rng: () => number = Math.random): Problem[] {
   if (mode === 'add' || mode === 'sub') {
-    return sampleUnique(allProblems(mode), count, rng)
+    return sampleWithZeroCap(allProblems(mode), count, rng)
   }
 
   const adds = allAddProblems()
   const subs = allSubProblems()
-  const addPick = sampleUnique(adds, 1, rng)[0]!
-  const subPick = sampleUnique(subs, 1, rng)[0]!
+  const addPick = pickOnePreferNormal(adds, rng)
+  const usedZero = isZeroRelated(addPick)
+  const subSource = usedZero ? subs.filter((item) => !isZeroRelated(item)) : subs
+  const subPick = pickOnePreferNormal(subSource.length > 0 ? subSource : subs, rng)
   const restPool = [...adds, ...subs].filter(
     (item) => problemKey(item) !== problemKey(addPick) && problemKey(item) !== problemKey(subPick),
   )
-  const rest = sampleUnique(restPool, count - 2, rng)
+  const rest = sampleWithZeroCap(restPool, count - 2, rng, usedZero || isZeroRelated(subPick))
   return shuffle([addPick, subPick, ...rest], rng)
 }
 

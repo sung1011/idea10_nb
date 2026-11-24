@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { ACKED_VERSION_KEY } from '../logic/appVersion'
 import { mulberry32, problemKey } from '../logic/makeProblem'
 import { DEFAULT_SAVE, STORAGE_KEY, memoryStorage } from '../storage/appStorage'
-import { createAppSession } from './appSession'
+import { createAppSession, hasRoundProgress } from './appSession'
 
 function answerCurrent(session: ReturnType<typeof createAppSession>) {
   const problem = session.state.problems[session.state.index]
@@ -17,11 +18,11 @@ function finishRound(session: ReturnType<typeof createAppSession>) {
 }
 
 describe('练习会话', () => {
-  it('默认打开即练，混合 5 题', () => {
+  it('默认打开即练，混合 10 题', () => {
     const session = createAppSession({ storage: memoryStorage(), rng: mulberry32(1) })
     expect(session.state.view).toBe('practice')
     expect(session.state.mode).toBe('mix')
-    expect(session.state.problems).toHaveLength(5)
+    expect(session.state.problems).toHaveLength(10)
     expect(session.state.problems.some((item) => item.op === '+')).toBe(true)
     expect(session.state.problems.some((item) => item.op === '-')).toBe(true)
   })
@@ -40,7 +41,7 @@ describe('练习会话', () => {
     answerCurrent(session)
     expect(problemKey(session.state.problems[session.state.index]!)).not.toBe(firstKey)
     finishRound(session)
-    expect(session.state.stats.firstTryCorrect).toBeLessThan(5)
+    expect(session.state.stats.firstTryCorrect).toBeLessThan(10)
     expect(session.state.stats.roundsCompleted).toBe(1)
   })
 
@@ -53,7 +54,7 @@ describe('练习会话', () => {
     answerCurrent(session)
     finishRound(session)
     expect(session.state.stats.hintUsed).toBe(1)
-    expect(session.state.stats.firstTryCorrect).toBe(5)
+    expect(session.state.stats.firstTryCorrect).toBe(10)
     expect(session.state.stats.stickerCount).toBe(1)
   })
 
@@ -161,6 +162,52 @@ describe('练习会话', () => {
     expect(session.state.view).toBe('practice')
     expect(storage.getItem('otherApp')).toBe('keep')
     expect(storage.getItem(STORAGE_KEY)).toBeNull()
+    expect(storage.getItem(ACKED_VERSION_KEY)).toBeNull()
+  })
+
+  it('做题中有进展才算本轮进度', () => {
+    const blank = createAppSession({ storage: memoryStorage(), rng: mulberry32(14) })
+    expect(hasRoundProgress(blank.state)).toBe(false)
+    blank.tapDigit('1')
+    expect(hasRoundProgress(blank.state)).toBe(true)
+
+    const hinted = createAppSession({ storage: memoryStorage(), rng: mulberry32(15) })
+    hinted.toggleHint()
+    expect(hasRoundProgress(hinted.state)).toBe(true)
+
+    const wrong = createAppSession({ storage: memoryStorage(), rng: mulberry32(16) })
+    wrong.tapDigit('9')
+    wrong.tapDigit('9')
+    wrong.tapConfirm()
+    expect(hasRoundProgress(wrong.state)).toBe(true)
+
+    const answered = createAppSession({ storage: memoryStorage(), rng: mulberry32(17) })
+    answerCurrent(answered)
+    expect(hasRoundProgress(answered.state)).toBe(true)
+
+    const done = createAppSession({ storage: memoryStorage(), rng: mulberry32(18) })
+    finishRound(done)
+    expect(done.state.view).toBe('complete')
+    expect(hasRoundProgress(done.state)).toBe(false)
+  })
+
+  it('旧 v1 统计存档可继续用，新轮仍是 10 题', () => {
+    const storage = memoryStorage({
+      [STORAGE_KEY]: JSON.stringify({
+        version: 1,
+        mode: 'sub',
+        roundsCompleted: 12,
+        firstTryCorrect: 48,
+        hintUsed: 3,
+        stickerCount: 12,
+      }),
+    })
+    const session = createAppSession({ storage, rng: mulberry32(21) })
+    expect(session.state.mode).toBe('sub')
+    expect(session.state.stats.roundsCompleted).toBe(12)
+    expect(session.state.stats.firstTryCorrect).toBe(48)
+    expect(session.state.problems).toHaveLength(10)
+    expect(session.state.problems.every((item) => item.op === '-')).toBe(true)
   })
 
   it('硬件数字键可用，输入框中不拦截', () => {

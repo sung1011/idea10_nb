@@ -30,6 +30,18 @@ describe('parseSave', () => {
     })
   })
 
+  it('旧 5 题时期的 v1 统计仍可读', () => {
+    const legacy = {
+      version: 1 as const,
+      mode: 'mix' as const,
+      roundsCompleted: 12,
+      firstTryCorrect: 48,
+      hintUsed: 3,
+      stickerCount: 12,
+    }
+    expect(parseSave(legacy)).toEqual(legacy)
+  })
+
   it('损坏或版本不对返回 null', () => {
     expect(parseSave('{')).toBeNull()
     expect(parseSave({ version: 2, mode: 'mix' })).toBeNull()

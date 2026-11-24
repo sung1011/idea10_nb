@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive } from 'vue'
-import { createAppSession } from './session/appSession'
+import updatePopover from './components/updatePopover.vue'
+import { useAppVersions } from './composables/useAppVersions'
+import { createAppSession, hasRoundProgress } from './session/appSession'
 import completeView from './views/completeView.vue'
 import parentSettingsView from './views/parentSettingsView.vue'
 import practiceView from './views/practiceView.vue'
@@ -8,9 +10,20 @@ import practiceView from './views/practiceView.vue'
 const session = createAppSession()
 const state = reactive(session.state)
 const problem = computed(() => state.problems[state.index])
+const versions = useAppVersions()
+const { pending, confirming, askConfirm, cancelConfirm, applyUpdate } = versions
+const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
 
 function onKey(event: KeyboardEvent) {
   session.handleKeydown(event)
+}
+
+function onUpdate() {
+  if (hasRoundProgress(state) && !confirming.value) {
+    askConfirm()
+    return
+  }
+  applyUpdate()
 }
 
 onMounted(() => {
@@ -26,15 +39,23 @@ onUnmounted(() => {
   <div class="shell">
     <header class="top">
       <p class="brand">一起算</p>
-      <button
-        v-if="state.view !== 'settings'"
-        type="button"
-        class="gear"
-        aria-label="家长设置"
-        @click="session.openSettings()"
-      >
-        设置
-      </button>
+      <div v-if="state.view !== 'settings'" class="gear-wrap">
+        <button
+          type="button"
+          class="gear"
+          aria-label="家长设置"
+          @click="session.openSettings()"
+        >
+          设置
+        </button>
+        <update-popover
+          v-if="showUpdate"
+          :pending="pending"
+          :confirming="confirming"
+          @update="onUpdate"
+          @cancel="cancelConfirm"
+        />
+      </div>
     </header>
 
     <practice-view
@@ -95,6 +116,11 @@ onUnmounted(() => {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 800;
+}
+
+.gear-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .gear {

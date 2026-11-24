@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { clearAcked } from '../logic/appVersion'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
 import {
   browserStorage,
@@ -34,6 +35,19 @@ export type AppState = {
   resetConfirming: boolean
   settingsOpenedMode: Mode | null
   stickerEmoji: string
+}
+
+export function hasRoundProgress(state: AppState): boolean {
+  return (
+    state.view === 'practice' &&
+    !state.settled &&
+    (state.index > 0 ||
+      state.input !== '' ||
+      state.showHint ||
+      state.hintThisRound > 0 ||
+      state.feedback === 'wrong' ||
+      state.wrongOnce.some(Boolean))
+  )
 }
 
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -222,6 +236,7 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
       state.resetConfirming = false
       return
     }
+    clearAcked(storage)
     state.writable = true
     state.storageMessage = ''
     state.stats = { ...DEFAULT_SAVE }
