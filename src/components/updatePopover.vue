@@ -46,10 +46,10 @@ const emit = defineEmits<{
   display: grid;
   gap: 8px;
   width: min(18rem, calc(100vw - 32px));
-  max-height: min(240px, calc(100dvh - 18rem));
+  max-height: min(176px, calc(100dvh - 22rem));
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 12px;
+  padding: 8px;
   border: 3px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
@@ -66,9 +66,9 @@ const emit = defineEmits<{
 
 .action,
 .ghost {
-  min-height: 48px;
+  min-height: 44px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 3px solid var(--line);
   border-radius: 14px;
   font-weight: 800;
@@ -84,10 +84,11 @@ const emit = defineEmits<{
 }
 
 .warn {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   color: var(--coral);
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
+  line-height: 1.25;
 }
 
 .row {
