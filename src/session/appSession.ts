@@ -1,3 +1,4 @@
+import { reactive } from 'vue'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
 import {
   browserStorage,
@@ -48,7 +49,7 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
   const rng = options.rng ?? Math.random
   const loaded = loadSave(storage)
 
-  const state: AppState = {
+  const state = reactive<AppState>({
     view: 'practice',
     mode: loaded.data.mode,
     problems: [],
@@ -68,7 +69,7 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     resetConfirming: false,
     settingsOpenedMode: null,
     stickerEmoji: STICKERS[0],
-  }
+  })
 
   function startRound(mode: Mode = state.mode) {
     state.mode = mode
