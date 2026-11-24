@@ -4,8 +4,8 @@ import app from './app.vue'
 import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
-  { id: 'v0.3.0', version: '0.3.0', date: '2026-11-25', summary: '新功能' },
-  { id: 'v0.2.0', version: '0.2.0', date: '2026-11-24', summary: '十题' },
+  { id: 'v0.4.0', version: '0.4.0', date: '2026-11-26', summary: '测试用更新' },
+  { id: 'v0.3.0', version: '0.3.0', date: '2026-11-24', summary: '桌面图标' },
 ]
 
 function mountApp() {
@@ -74,7 +74,7 @@ describe('界面响应', () => {
     const { el, vueApp } = mountApp()
     await flush()
     expect(el.textContent).toContain('更新')
-    expect(el.textContent).toContain('0.3.0')
+    expect(el.textContent).toContain('0.4.0')
     expect(el.querySelector('.popover')).toBeTruthy()
     expect(el.querySelector('.sticky')?.textContent).toContain('更新')
     expect([...el.querySelectorAll('button')].some((node) => node.textContent?.trim() === '3')).toBe(true)

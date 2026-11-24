@@ -1,6 +1,6 @@
 # 工程落地点
 
-纯前端 Vue 3 + Vite + TypeScript，GitHub Pages 发布。无后端、无 PWA、无音效。
+纯前端 Vue 3 + Vite + TypeScript，GitHub Pages 发布。无后端、无 Service Worker、无离线缓存、无音效。
 
 ## 结构
 
@@ -9,6 +9,8 @@
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
 - `src/session/appSession.ts` 练习 / 完成 / 设置状态机
 - `src/views/` 三视图；`src/components/` 键盘、积木、贴纸、更新框
+- `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`
+- `yiqisuan-assets/approved-app-icon.jpg` 用户确认的主图标原图；`scripts/makeIcons.sh` 只做高质量缩放转 PNG
 
 ## 统计
 
@@ -17,6 +19,7 @@
 - 使用提示：该题第一次展开积木
 - 三项都在完成时一次性写入；刷新中途轮次作废并重开新轮
 - 旧 `idea10Nb.v1` 可继续读；ack 在单独键 `idea10Nb.ackedVersion`
+- 记录不跨设备；独立窗口与浏览器标签页可能隔离
 
 ## 更新
 
@@ -25,6 +28,12 @@
 - 设置按钮右下 popover，内部 sticky「更新」；设置页打开时隐藏
 - 「更新」用 `_reload` 时间戳 `location.replace`，不注册 Service Worker
 - 练习中已有进展需二次确认；取消不 ack
+
+## 桌面 App
+
+- `display: standalone`，`id` / `start_url` / `scope` 均为 `/idea10_nb/`
+- 主题色与背景色 `#fff4e4`
+- 仍需联网加载；不加离线缓存
 
 ## 部署
 

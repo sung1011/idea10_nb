@@ -1,0 +1,25 @@
+{
+  "id": "/idea10_nb/",
+  "name": "一起算",
+  "short_name": "一起算",
+  "lang": "zh-CN",
+  "display": "standalone",
+  "start_url": "/idea10_nb/",
+  "scope": "/idea10_nb/",
+  "theme_color": "#fff4e4",
+  "background_color": "#fff4e4",
+  "icons": [
+    {
+      "src": "/idea10_nb/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/idea10_nb/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -17,6 +17,19 @@ const remote = [
 ]
 
 describe('版本检测', () => {
+  it('加载 0.3.0 构建只 ack 当前构建，远端没有更高版本则不弹', async () => {
+    const storage = memoryStorage()
+    const checker = createVersionChecker({
+      buildVersion: '0.3.0',
+      fetch: async () => jsonResponse(remote),
+      storage,
+    })
+    checker.markRunningBuild()
+    expect(storage.getItem(ACKED_VERSION_KEY)).toBe('0.3.0')
+    await checker.refresh()
+    expect(checker.pending.value).toEqual([])
+  })
+
   it('当前构建已是最新则不弹，即使没有 ack', () => {
     const checker = createVersionChecker({
       buildVersion: '0.2.0',
