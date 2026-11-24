@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+  --bg: #fff4e4;
+  --ink: #3b2a1a;
+  --paper: #fffdf8;
+  --muted: #8a6f57;
+  --teal: #2a9d8f;
+  --teal-dark: #1f756b;
+  --coral: #e76f51;
+  --gold: #f4a261;
+  --line: #3b2a1a;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 8%, #ffe7c2 0 18%, transparent 19%),
+    radial-gradient(circle at 90% 4%, #ffd5c8 0 14%, transparent 15%),
+    var(--bg);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
