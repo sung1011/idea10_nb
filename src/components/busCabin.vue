@@ -52,9 +52,9 @@ function motionMs() {
         </button>
         <div class="cab" data-cab aria-hidden="true">
           <svg viewBox="0 0 48 56" width="48" height="56">
-            <path d="M6 8 H34 L44 20 V48 H6 Z" fill="#bfe8e2" stroke="#3b2a1a" stroke-width="3" />
-            <path d="M34 8 L44 20 H34 Z" fill="#7ec8bf" stroke="#3b2a1a" stroke-width="3" />
-            <rect x="12" y="18" width="16" height="18" rx="3" fill="#fffdf8" stroke="#3b2a1a" stroke-width="2" />
+            <path d="M6 10 H30 L42 22 V46 H6 Z" fill="#bfe8e2" stroke="#3b2a1a" stroke-width="3" />
+            <rect x="12" y="22" width="18" height="16" rx="4" fill="#fffdf8" stroke="#3b2a1a" stroke-width="2.2" />
+            <circle cx="21" cy="30" r="2" fill="#3b2a1a" />
           </svg>
         </div>
       </div>
