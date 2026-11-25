@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { makeRound, mulberry32 } from './makeProblem'
 import {
   arriveSeesawNext,
+  beginSeesawCheer,
   confirmSeesaw,
   createSeesawPlay,
   restoreSeesaw,
@@ -135,6 +136,23 @@ describe('磁盘快照', () => {
     expect(play.right).toBe(4)
   })
 
+  it('庆祝阶段重复确认无效，快照仍到下一题', () => {
+    const play = addPlay()
+    tapSeesawDigit(play, '4')
+    confirmSeesaw(play)
+    beginSeesawCheer(play)
+    expect(play.motion).toBe('cheer')
+    expect(play.right).toBe(7)
+    expect(tiltDeg(7, play.right)).toBe(0)
+    expect(confirmSeesaw(play)).toBe('locked')
+    expect(play.index).toBe(0)
+    expect(play.motion).toBe('cheer')
+    const disk = seesawForDisk(play)
+    expect(disk.index).toBe(1)
+    expect(disk.motion).toBe('idle')
+    expect(play.index).toBe(0)
+  })
+
   it('末题正确快照为已完成', () => {
     const play = addPlay()
     while (play.index < 9) {
@@ -148,6 +166,12 @@ describe('磁盘快照', () => {
     expect(disk.settled).toBe(true)
     expect(disk.accounted).toBe(false)
     expect(disk.moving).toBe(false)
+    beginSeesawCheer(play)
+    const cheerDisk = seesawForDisk(play)
+    expect(cheerDisk.settled).toBe(true)
+    expect(cheerDisk.accounted).toBe(false)
+    expect(play.settled).toBe(false)
+    expect(play.motion).toBe('cheer')
   })
 
   it('帮助只记一次且不改盘', () => {

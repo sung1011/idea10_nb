@@ -8,10 +8,11 @@ import {
   seesawRight,
 } from './seesawProblem'
 
-export type SeesawMotion = 'idle' | 'apply' | 'hold' | 'restore' | 'level'
+export type SeesawMotion = 'idle' | 'apply' | 'hold' | 'restore' | 'level' | 'cheer'
 
 export const SEESAW_LEVEL_MS = 420
-export const SEESAW_HOLD_MS = 500
+export const SEESAW_CELEBRATE_MS = 1000
+export const SEESAW_HOLD_MS = 800
 export const TILT_PER = 7
 export const TILT_MAX = 28
 
@@ -82,6 +83,13 @@ export function restoreSeesaw(play: SeesawPlay) {
   play.moving = false
   play.locked = false
   play.input = ''
+}
+
+export function beginSeesawCheer(play: SeesawPlay) {
+  if (play.outcome !== 'correct') return
+  play.motion = 'cheer'
+  play.moving = true
+  play.locked = true
 }
 
 export function arriveSeesawNext(play: SeesawPlay): 'next' | 'done' {
@@ -175,7 +183,7 @@ export function seesawForDisk(play: SeesawPlay): SeesawPlay {
     copy.input = ''
     return copy
   }
-  if (copy.outcome === 'correct' || copy.motion === 'level') {
+  if (copy.outcome === 'correct' || copy.motion === 'level' || copy.motion === 'cheer') {
     arriveSeesawNext(copy)
     return copy
   }

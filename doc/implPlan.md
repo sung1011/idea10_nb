@@ -8,14 +8,14 @@
 - `src/storage/appStorage.ts` 键 `idea10Nb.v1`，内部 version 3：统计+对局同一 JSON；读 v1/v2 升到 3 并保留算术坐车；损坏或更高版本不覆盖；坏跷跷板只丢跷跷板保另两局
 - `src/storage/playSnapshot.ts` 校验并规范化可恢复对局（含 `seesaw`）
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
-- `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板状态机；`switchPlay` 三玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确动画快照已到下一题 idle，错误动画快照为原题 idle
+- `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板状态机；`switchPlay` 三玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确 `level`/`cheer` 快照已到下一题 idle，错误 `hold` 快照为原题 idle；切走会 flush 动画收尾；`prefers-reduced-motion` 跳过回平等待但仍显示静态对勾/箭头并停留 1000/800ms
 - `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上玩法下拉「算式 / 坐车 / 跷跷板」；设置页无下拉
-- `src/logic/seesawProblem.ts` / `seesawMove.ts`：复用 `makeRound`，□=`b`，加法左=`answer` 右=`a`，减法同样；确认后整批改右盘；倾角 `(right-left)*7` 夹在 ±28°；正确 420ms 回平，错误停倾角 500ms 再还原
+- `src/logic/seesawProblem.ts` / `seesawMove.ts`：复用 `makeRound`，□=`b`，加法左=`answer` 右=`a`，减法同样；确认后整批改右盘；倾角 `(right-left)*7` 夹在 ±28°；正确 `level` 420ms 回平后 `cheer` 1000ms 再下一题，错误停实际倾角 `hold` 800ms 再还原；磁盘快照把 `level`/`cheer` 收成下一题 idle，`hold` 收成原题 idle
 - `src/logic/busRoute.ts` / `busMove.ts`：可解 10 题、当站撤回、发车少/多、四类错误方向；正确发车 `leave` 420ms 驶离后换题，再 `enter` 420ms 驶入；第 10 题只驶出；`prefers-reduced-motion` 用 360ms 车灯闪而不位移
 - 坐车、跷跷板进度与算术共用 `progressLabel.vue`，文案「第 x / 10 题」；不再用地标路线条
 - 390 窄屏车头在车顶右侧（挡风玻璃），车灯在保险杠，轮子压在车身下沿，不占第五列座位、不靠裁切藏车头
 - `src/views/` 算术、完成、设置、坐车、跷跷板（儿童主流程少字，靠盘面数量和倾角）；设置内页签「题目」「更新」
-- `src/components/` 键盘、积木、进度、贴纸、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、玩法下拉
+- `src/components/` 键盘、积木、进度、贴纸、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、玩法下拉；答对/答错反馈是梁上 CSS/SVG 对勾、星光、重试箭头与轻晃，无新位图，`pointer-events: none`
 - 动物 / 巴士 / 路线 / 车票 / 跷跷板用 Vue+SVG/CSS，与游戏页同一组件；完成页再玩为图形按钮加水平梁 SVG，无新位图
 - `src/composables/useInstallPrompt.ts` 缓存 `beforeinstallprompt`，不注册 Service Worker
 - `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`

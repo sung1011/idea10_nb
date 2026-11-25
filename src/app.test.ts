@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.5', version: '0.6.5', date: '2026-11-25', summary: '玩法下拉' },
+  { id: 'v0.6.6', version: '0.6.6', date: '2026-11-25', summary: '跷跷板答题反馈' },
 ]
 
 function mountApp() {

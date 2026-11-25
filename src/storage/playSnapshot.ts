@@ -330,7 +330,14 @@ export function emptyPractice(mode: Mode, problems: Problem[], stickerEmoji = ST
 }
 
 function parseSeesawMotion(value: unknown): SeesawPlay['motion'] {
-  if (value === 'idle' || value === 'apply' || value === 'hold' || value === 'restore' || value === 'level') {
+  if (
+    value === 'idle' ||
+    value === 'apply' ||
+    value === 'hold' ||
+    value === 'restore' ||
+    value === 'level' ||
+    value === 'cheer'
+  ) {
     return value
   }
   return 'idle'

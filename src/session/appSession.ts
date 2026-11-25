@@ -22,10 +22,12 @@ import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../lo
 import { playKindOf, type PlayKind } from '../logic/playKind'
 import {
   arriveSeesawNext,
+  beginSeesawCheer,
   confirmSeesaw,
   createSeesawPlay,
   hasSeesawProgress,
   restoreSeesaw,
+  SEESAW_CELEBRATE_MS,
   SEESAW_HOLD_MS,
   SEESAW_LEVEL_MS,
   seesawForDisk,
@@ -56,7 +58,7 @@ import {
 export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
 
 export const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
-export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
+export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_CELEBRATE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
 
 export type AppState = {
   view: View
@@ -364,7 +366,7 @@ export function createAppSession(
       return
     }
     clearSeesawTimer()
-    if (play.outcome === 'correct' || play.motion === 'level') {
+    if (play.outcome === 'correct' || play.motion === 'level' || play.motion === 'cheer') {
       const next = arriveSeesawNext(play)
       if (next === 'done') finishSeesaw()
       else persistAll()
@@ -627,39 +629,51 @@ export function createAppSession(
     })
   }
 
+  function queueSeesaw(ms: number, fn: () => void) {
+    clearSeesawTimer()
+    seesawTimer = delay(() => {
+      seesawTimer = 0
+      fn()
+    }, ms)
+  }
+
+  function runSeesawArrive() {
+    const play = state.seesaw
+    if (!play?.moving) return
+    const next = arriveSeesawNext(play)
+    if (next === 'done') finishSeesaw()
+    else persistAll()
+  }
+
+  function runSeesawRestore() {
+    const play = state.seesaw
+    if (!play?.moving) return
+    restoreSeesaw(play)
+    persistAll()
+  }
+
   function seesawTapConfirm() {
     withSeesaw((play) => {
       const result = confirmSeesaw(play)
       if (result === 'empty' || result === 'locked') return
-      if (reducedMotion()) {
-        if (result === 'correct') {
-          const next = arriveSeesawNext(play)
-          if (next === 'done') finishSeesaw()
-          else persistAll()
-        } else {
-          restoreSeesaw(play)
+      persistAll()
+      if (result === 'correct') {
+        if (reducedMotion()) {
+          beginSeesawCheer(play)
           persistAll()
+          queueSeesaw(SEESAW_CELEBRATE_MS, runSeesawArrive)
+        } else {
+          queueSeesaw(SEESAW_LEVEL_MS, () => {
+            const current = state.seesaw
+            if (!current?.moving) return
+            beginSeesawCheer(current)
+            persistAll()
+            queueSeesaw(SEESAW_CELEBRATE_MS, runSeesawArrive)
+          })
         }
         return
       }
-      persistAll()
-      clearSeesawTimer()
-      if (result === 'correct') {
-        seesawTimer = delay(() => {
-          seesawTimer = 0
-          if (!state.seesaw?.moving) return
-          const next = arriveSeesawNext(state.seesaw)
-          if (next === 'done') finishSeesaw()
-          else persistAll()
-        }, SEESAW_LEVEL_MS)
-        return
-      }
-      seesawTimer = delay(() => {
-        seesawTimer = 0
-        if (!state.seesaw?.moving) return
-        restoreSeesaw(state.seesaw)
-        persistAll()
-      }, SEESAW_HOLD_MS)
+      queueSeesaw(SEESAW_HOLD_MS, runSeesawRestore)
     })
   }
 
