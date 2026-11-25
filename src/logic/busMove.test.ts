@@ -147,6 +147,17 @@ describe('当站上下车与撤回', () => {
     expect(slots.filter((slot) => slot.kind === 'missing').length).toBe(2)
   })
 
+  it('keepMoving 时下一站仍锁定并进入驶入阶段', () => {
+    const play = createBusPlay(handmadeTrip())
+    boardUntil(play, 5)
+    expect(depart(play)).toBe('ok')
+    expect(arriveNext(play, true)).toBe('next')
+    expect(play.stationIndex).toBe(1)
+    expect(play.moving).toBe(true)
+    expect(play.motion).toBe('enter')
+    expect(tapSeat(play, 0)).toBe(false)
+  })
+
   it('过站人数承接，完成只到终点', () => {
     const play = createBusPlay(handmadeTrip())
     passStation(play)

@@ -254,7 +254,7 @@ function touchBus(session: ReturnType<typeof createAppSession>) {
   session.busTapSeat(index)
 }
 
-function passCurrentStop(session: ReturnType<typeof createAppSession>) {
+function fillCurrentStop(session: ReturnType<typeof createAppSession>) {
   const play = session.state.bus
   if (!play) throw new Error('no bus')
   const target = currentStation(play).target
@@ -270,7 +270,34 @@ function passCurrentStop(session: ReturnType<typeof createAppSession>) {
       session.busTapSeat(index)
     }
   }
+}
+
+function passCurrentStop(session: ReturnType<typeof createAppSession>) {
+  fillCurrentStop(session)
   session.busDepart()
+  if (session.state.bus?.moving) session.flushBusMove()
+}
+
+function mockDelay() {
+  let pending: (() => void) | null = null
+  return {
+    delay(fn: () => void) {
+      pending = fn
+      return 1
+    },
+    cancel() {
+      pending = null
+    },
+    fire() {
+      const fn = pending
+      pending = null
+      if (!fn) throw new Error('no pending timer')
+      fn()
+    },
+    isEmpty() {
+      return pending === null
+    },
+  }
 }
 
 describe('坐车会话', () => {
@@ -360,41 +387,109 @@ describe('坐车会话', () => {
   })
 
   it('动画连点不重复过站；设置会先落地动画', () => {
-    let pending: (() => void) | null = null
+    const timer = mockDelay()
     const session = createAppSession({
       storage: memoryStorage(),
       rng: mulberry32(34),
       reducedMotion: () => false,
-      delay: (fn) => {
-        pending = fn
-        return 1
-      },
-      cancelDelay: () => {
-        pending = null
-      },
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
     })
     session.openBus()
-    const target = currentStation(session.state.bus!).target
-    if (currentStation(session.state.bus!).kind === 'board') {
-      while (onboardCount(session.state.bus!.seats) < target) {
-        session.busTapWaiting(session.state.bus!.waiting[0]!.id)
-      }
-    } else {
-      while (onboardCount(session.state.bus!.seats) > target) {
-        session.busTapSeat(session.state.bus!.seats.findIndex((seat) => seat))
-      }
-    }
+    fillCurrentStop(session)
     session.busDepart()
     expect(session.state.bus?.moving).toBe(true)
+    expect(session.state.bus?.motion).toBe('leave')
     session.busDepart()
     session.busTapSeat(0)
     expect(session.state.bus?.stationIndex).toBe(0)
     session.openSettings()
     expect(session.state.bus?.moving).toBe(false)
     expect(session.state.bus?.stationIndex).toBe(1)
-    expect(pending).toBeNull()
+    expect(session.state.bus?.motion).toBe('idle')
+    expect(timer.isEmpty()).toBe(true)
     session.closeSettings()
     expect(session.state.view).toBe('bus')
+  })
+
+  it('驶离后换站再驶入；驶入中flush只落地一次', () => {
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(39),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    fillCurrentStop(session)
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('leave')
+    expect(session.state.bus?.stationIndex).toBe(0)
+    timer.fire()
+    expect(session.state.bus?.stationIndex).toBe(1)
+    expect(session.state.bus?.moving).toBe(true)
+    expect(session.state.bus?.motion).toBe('enter')
+    const at = session.state.bus!.stationIndex
+    session.busDepart()
+    session.busTapSeat(0)
+    expect(session.state.bus?.stationIndex).toBe(at)
+    session.openSettings()
+    expect(session.state.bus?.stationIndex).toBe(at)
+    expect(session.state.bus?.moving).toBe(false)
+    expect(session.state.bus?.motion).toBe('idle')
+    session.closeSettings()
+    expect(session.state.view).toBe('bus')
+  })
+
+  it('减弱动画用灯光阶段过站，错误发车不走', () => {
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(40),
+      reducedMotion: () => true,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('idle')
+    expect(session.state.bus?.moving).toBe(false)
+    expect(timer.isEmpty()).toBe(true)
+    fillCurrentStop(session)
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('flash')
+    expect(session.state.bus?.stationIndex).toBe(0)
+    timer.fire()
+    expect(session.state.bus?.stationIndex).toBe(1)
+    expect(session.state.bus?.motion).toBe('idle')
+    expect(session.state.bus?.moving).toBe(false)
+  })
+
+  it('末站驶离后出票，不再驶入', () => {
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(41),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    while ((session.state.bus?.stationIndex ?? 0) < 4) {
+      fillCurrentStop(session)
+      session.busDepart()
+      timer.fire()
+      timer.fire()
+    }
+    expect(session.state.bus?.stationIndex).toBe(4)
+    fillCurrentStop(session)
+    session.busDepart()
+    expect(session.state.view).toBe('bus')
+    expect(session.state.bus?.motion).toBe('leave')
+    timer.fire()
+    expect(session.state.view).toBe('busComplete')
+    expect(session.state.stats.busTripsCompleted).toBe(1)
   })
 
   it('无语音朗读静默失败；刷新丢中途局但保留已存统计', () => {

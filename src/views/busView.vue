@@ -29,13 +29,6 @@ const emit = defineEmits<{
 const station = computed(() => currentStation(props.play))
 const cue = computed(() => errorCue(props.play))
 const kinds = computed(() => props.play.seats.map((_, index) => seatKind(props.play, index)))
-const mascot = computed(
-  () =>
-    props.play.seats.find((seat) => seat) ??
-    props.play.waiting[0] ??
-    props.play.offArea[0] ??
-    props.play.trip.initialOnboard[0]!,
-)
 const showBoardGesture = computed(
   () => !props.reducedMotion && station.value.kind === 'board' && !props.play.shownBoardGesture,
 )
@@ -101,16 +94,18 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <bus-cabin
-      :seats="play.seats"
-      :kinds="kinds"
-      :moving="play.moving"
-      :target="station.target"
-      :mascot="mascot"
-      :cue="cue"
-      @seat="emit('seat', $event)"
-      @target="emit('helper')"
-    />
+    <div class="lane">
+      <bus-cabin
+        :seats="play.seats"
+        :kinds="kinds"
+        :moving="play.moving"
+        :motion="play.motion"
+        :target="station.target"
+        :cue="cue"
+        @seat="emit('seat', $event)"
+        @target="emit('helper')"
+      />
+    </div>
 
     <count-help v-if="play.helperOpen" :slots="helpSlots(play)" :target="station.target" />
 
@@ -164,6 +159,11 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 8px;
   justify-items: stretch;
+}
+
+.lane {
+  width: 100%;
+  overflow: hidden;
 }
 
 .route {

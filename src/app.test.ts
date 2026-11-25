@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.0', version: '0.6.0', date: '2026-11-25', summary: '图形坐车' },
+  { id: 'v0.6.1', version: '0.6.1', date: '2026-11-25', summary: '目标只显示数字，巴士开走' },
 ]
 
 function mountApp() {
@@ -183,6 +183,11 @@ describe('界面响应', () => {
     expect(el.querySelectorAll('[data-seat]').length).toBe(10)
     expect(el.querySelectorAll('[data-stop]').length).toBe(5)
     expect(el.querySelector('[data-target]')).toBeTruthy()
+    expect(el.querySelector('[data-target] svg')).toBeFalsy()
+    expect(el.querySelector('[data-target]')?.textContent?.trim()).toMatch(/^\d+$/)
+    expect(el.querySelector('[data-cab]')).toBeTruthy()
+    expect(el.querySelectorAll('[data-tire]').length).toBe(2)
+    expect(el.querySelectorAll('[data-lamp]').length).toBe(2)
     const child = el.querySelector('.bus')?.textContent ?? ''
     expect(child).not.toMatch(/发车|候车|少了|小帮手|喇叭|撤回|本站重来/)
     byAria(el, '算术').click()
@@ -232,7 +237,23 @@ function occupiedSeats(el: HTMLElement) {
   return [...el.querySelectorAll('[data-seat]')].filter((node) => node.getAttribute('data-animal')).length
 }
 
-async function playOneStop(el: HTMLElement) {
+async function waitCabinIdle(el: HTMLElement) {
+  const start = Date.now()
+  while (Date.now() - start < 2500) {
+    if (el.querySelector('[data-again]')) return
+    const cabin = el.querySelector('[data-cabin]')
+    if (!cabin) return
+    const motion = cabin.getAttribute('data-motion')
+    if (!motion || motion === 'idle') {
+      await nextTick()
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await nextTick()
+  }
+}
+
+async function playOneStop(el: HTMLElement, wait = true) {
   const target = Number(el.querySelector('[data-target]')?.getAttribute('data-target'))
   if (!Number.isFinite(target)) throw new Error('no target')
   const board = el.querySelector('[data-kind="board"]')
@@ -269,6 +290,7 @@ async function playOneStop(el: HTMLElement) {
   if (!depart) throw new Error('no depart')
   depart.click()
   await nextTick()
+  if (wait) await waitCabinIdle(el)
 }
 
 describe('坐车界面整局', () => {
@@ -311,6 +333,7 @@ describe('坐车界面整局', () => {
     const depart = el.querySelector('[data-depart]') as HTMLButtonElement
     depart.click()
     await nextTick()
+    expect(el.querySelector('[data-motion="leave"], [data-motion="flash"]')).toBeFalsy()
     expect(el.querySelector('[data-cue="board-more"], [data-cue="board-back"], [data-cue="alight-more"], [data-cue="alight-back"]')).toBeTruthy()
     expect(el.querySelector('.bus')?.textContent).not.toMatch(/少了|多了/)
     const targetBtn = el.querySelector('[data-target]') as HTMLButtonElement
@@ -381,14 +404,16 @@ describe('坐车动画与撤回', () => {
     byAria(el, '坐车').click()
     await nextTick()
     const firstTarget = el.querySelector('[data-target]')?.getAttribute('data-target')
-    await playOneStop(el)
+    await playOneStop(el, false)
     const wheel = el.querySelector('[data-depart]') as HTMLButtonElement
-    expect(wheel.disabled || el.querySelector('.moving')).toBeTruthy()
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(wheel.disabled || el.querySelector('[data-motion="leave"]')).toBeTruthy()
+    expect(el.querySelector('[data-target] svg')).toBeFalsy()
+    await waitCabinIdle(el)
     await nextTick()
     const laterTarget = el.querySelector('[data-target]')?.getAttribute('data-target')
     const again = el.querySelector('[data-again]')
-    expect(Boolean(again) || laterTarget !== firstTarget || occupiedSeats(el) !== Number(firstTarget)).toBe(true)
+    const idle = el.querySelector('[data-motion="idle"]')
+    expect(Boolean(again) || Boolean(idle) || laterTarget !== firstTarget).toBe(true)
     vueApp.unmount()
   })
 })

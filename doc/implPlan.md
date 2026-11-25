@@ -8,7 +8,8 @@
 - `src/storage/appStorage.ts` 键 `idea10Nb.v1`；损坏不覆盖；写失败不假报
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
 - `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车状态机
-- `src/logic/busRoute.ts` / `busMove.ts`：可解五站、当站撤回、发车少/多、四类错误方向
+- `src/logic/busRoute.ts` / `busMove.ts`：可解五站、当站撤回、发车少/多、四类错误方向；正确发车 `leave` 420ms 驶离后换站，再 `enter` 420ms 驶入；末站只驶出；`prefers-reduced-motion` 用 360ms 车灯闪而不位移
+- 390 窄屏车头在车顶右侧（挡风玻璃），车灯在保险杠，轮子压在车身下沿，不占第五列座位、不靠裁切藏车头
 - `src/views/` 算术、完成、设置、坐车（儿童主流程无可见操作文字）；设置内页签「题目」「更新」
 - `src/components/` 键盘、积木、贴纸、车票、动物脸、巴士、地标、数量帮助、更新框
 - 动物 / 巴士 / 路线 / 车票用 Vue+SVG/CSS，与游戏页同一组件

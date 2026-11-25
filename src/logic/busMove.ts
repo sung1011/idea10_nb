@@ -14,6 +14,12 @@ export type BusStackMove =
 
 export type DepartResult = 'ok' | 'few' | 'many' | 'locked'
 
+export type BusMotion = 'idle' | 'leave' | 'enter' | 'flash'
+
+export const BUS_LEAVE_MS = 420
+export const BUS_ENTER_MS = 420
+export const BUS_FLASH_MS = 360
+
 export type BusPlay = {
   trip: BusTrip
   stationIndex: number
@@ -30,6 +36,7 @@ export type BusPlay = {
   departLocked: boolean
   feedback: '' | 'few' | 'many'
   moving: boolean
+  motion: BusMotion
   settled: boolean
   accounted: boolean
   shownBoardGesture: boolean
@@ -105,6 +112,7 @@ export function createBusPlay(trip: BusTrip): BusPlay {
     departLocked: false,
     feedback: '',
     moving: false,
+    motion: 'idle',
     settled: false,
     accounted: false,
     shownBoardGesture: false,
@@ -235,15 +243,22 @@ export function depart(play: BusPlay): DepartResult {
   return 'ok'
 }
 
-export function arriveNext(play: BusPlay): 'next' | 'done' {
+export function arriveNext(play: BusPlay, keepMoving = false): 'next' | 'done' {
   if (!play.moving || play.settled) return play.settled ? 'done' : 'next'
-  play.moving = false
   if (play.stationIndex >= play.trip.stations.length - 1) {
+    play.moving = false
+    play.motion = 'idle'
     play.settled = true
     return 'done'
   }
   play.stationIndex += 1
   snapshotStation(play)
+  if (keepMoving) {
+    play.moving = true
+    play.motion = 'enter'
+  } else {
+    play.motion = 'idle'
+  }
   return 'next'
 }
 

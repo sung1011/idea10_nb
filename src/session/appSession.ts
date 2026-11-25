@@ -2,6 +2,9 @@ import { reactive } from 'vue'
 import { clearAcked } from '../logic/appVersion'
 import {
   arriveNext,
+  BUS_ENTER_MS,
+  BUS_FLASH_MS,
+  BUS_LEAVE_MS,
   createBusPlay,
   currentStation,
   depart,
@@ -30,7 +33,7 @@ import {
 export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete'
 
 export const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
-export const BUS_MOVE_MS = 480
+export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS }
 
 export type AppState = {
   view: View
@@ -213,7 +216,13 @@ export function createAppSession(
       return
     }
     clearBusTimer()
+    if (play.motion === 'enter') {
+      play.moving = false
+      play.motion = 'idle'
+      return
+    }
     const result = arriveNext(play)
+    play.motion = 'idle'
     if (result === 'done') finishBus()
   }
 
@@ -436,18 +445,34 @@ export function createAppSession(
     withBus((play) => {
       const result = depart(play)
       if (result !== 'ok') return
+      clearBusTimer()
       if (reducedMotion()) {
-        const next = arriveNext(play)
-        if (next === 'done') finishBus()
+        play.motion = 'flash'
+        busTimer = delay(() => {
+          busTimer = 0
+          if (!state.bus?.moving) return
+          const next = arriveNext(state.bus)
+          state.bus.motion = 'idle'
+          if (next === 'done') finishBus()
+        }, BUS_FLASH_MS)
         return
       }
-      clearBusTimer()
+      play.motion = 'leave'
       busTimer = delay(() => {
         busTimer = 0
         if (!state.bus?.moving) return
-        const next = arriveNext(state.bus)
-        if (next === 'done') finishBus()
-      }, BUS_MOVE_MS)
+        const next = arriveNext(state.bus, true)
+        if (next === 'done') {
+          finishBus()
+          return
+        }
+        busTimer = delay(() => {
+          busTimer = 0
+          if (!state.bus?.moving) return
+          state.bus.moving = false
+          state.bus.motion = 'idle'
+        }, BUS_ENTER_MS)
+      }, BUS_LEAVE_MS)
     })
   }
 
