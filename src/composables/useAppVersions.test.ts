@@ -119,25 +119,23 @@ describe('版本检测', () => {
     expect(init?.cache).toBe('no-store')
   })
 
-  it('确认中轮询不改弹窗；更新消失才收起', async () => {
+  it('轮询会换成更新的 pending；没有更高版本则收起', async () => {
     let payload: unknown = remote
     const checker = createVersionChecker({
       buildVersion: '0.2.0',
       fetch: async () => jsonResponse(payload),
     })
     await checker.refresh()
-    checker.askConfirm()
+    expect(checker.pending.value.map((item) => item.version)).toEqual(['0.3.0'])
     payload = [
       { id: 'v0.4.0', version: '0.4.0', date: '2026-11-26', summary: '更新的说明' },
       ...remote,
     ]
     await checker.refresh()
-    expect(checker.confirming.value).toBe(true)
-    expect(checker.pending.value.map((item) => item.version)).toEqual(['0.3.0'])
+    expect(checker.pending.value.map((item) => item.version)).toEqual(['0.4.0', '0.3.0'])
 
     payload = remote.filter((item) => item.version === '0.2.0')
     await checker.refresh()
-    expect(checker.confirming.value).toBe(false)
     expect(checker.pending.value).toEqual([])
   })
 
@@ -157,25 +155,24 @@ describe('版本检测', () => {
     expect(checker.pending.value).toEqual([])
   })
 
-  it('更新用 _reload，不在刷新前 ack 远端版本；取消确认不 ack', () => {
+  it('更新用 _reload，不在刷新前 ack 远端版本；连点只触发一次', () => {
     const storage = memoryStorage()
-    let replaced = ''
+    const replaced: string[] = []
     const checker = createVersionChecker({
       buildVersion: '0.2.0',
       storage,
       locationHref: () => 'https://sung1011.github.io/idea10_nb/',
       replace: (href) => {
-        replaced = href
+        replaced.push(href)
       },
       now: () => 42,
     })
-    checker.askConfirm()
-    expect(checker.confirming.value).toBe(true)
-    checker.cancelConfirm()
-    expect(checker.confirming.value).toBe(false)
     expect(storage.getItem(ACKED_VERSION_KEY)).toBeNull()
     checker.applyUpdate()
-    expect(replaced).toContain('_reload=42')
+    checker.applyUpdate()
+    expect(replaced).toHaveLength(1)
+    expect(replaced[0]).toContain('_reload=42')
+    expect(checker.updating.value).toBe(true)
     expect(storage.getItem(ACKED_VERSION_KEY)).toBeNull()
   })
 })

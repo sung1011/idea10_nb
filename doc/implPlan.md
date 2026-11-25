@@ -40,8 +40,8 @@
 - 每 10 秒 `no-store` 拉 `/idea10_nb/versions.json?t=`
 - 远端版本号大于当前构建才提示；不把尚未加载的新版本写成 ack
 - 设置按钮右下 popover，内部 sticky「更新」；设置页打开时隐藏
-- 「更新」用 `_reload` 时间戳 `location.replace`，不注册 Service Worker
-- 练习、坐车或未完成跷跷板已有进展需二次确认；完成页不误报；取消不 ack
+- 「更新」用 `_reload` 时间戳 `location.replace`，不注册 Service Worker；顶部 popover 与设置页同一 `applyUpdate`，有未完成进度也不再二次确认
+- `applyUpdate` 用 `updating` 锁一次刷新，防止连点多次 `location.replace`；刷新前不 ack 远端版本
 
 ## 桌面 App
 

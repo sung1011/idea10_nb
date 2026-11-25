@@ -42,7 +42,7 @@ export function createVersionChecker(options: {
 
   const pending = ref<VersionGroup[]>([])
   const history = ref<VersionGroup[]>([])
-  const confirming = ref(false)
+  const updating = ref(false)
 
   async function refresh() {
     try {
@@ -53,13 +53,8 @@ export function createVersionChecker(options: {
       const groups = groupVersions(parseVersions(data))
       history.value = groups
       const next = pendingGroups(groups, buildVersion)
-      if (confirming.value && next.length > 0) return
-      if (pendingSignature(pending.value) === pendingSignature(next)) {
-        if (next.length === 0) confirming.value = false
-        return
-      }
+      if (pendingSignature(pending.value) === pendingSignature(next)) return
       pending.value = next
-      if (next.length === 0) confirming.value = false
     } catch {
       // 离线或坏数据：保持现状，不误报
     }
@@ -75,15 +70,9 @@ export function createVersionChecker(options: {
     if (next) replaceState(next)
   }
 
-  function askConfirm() {
-    confirming.value = true
-  }
-
-  function cancelConfirm() {
-    confirming.value = false
-  }
-
   function applyUpdate() {
+    if (updating.value) return
+    updating.value = true
     replace(withReloadParam(locationHref(), now()))
   }
 
@@ -91,13 +80,11 @@ export function createVersionChecker(options: {
     buildVersion,
     pending,
     history,
-    confirming,
+    updating,
     ackKey: ACKED_VERSION_KEY,
     refresh,
     markRunningBuild,
     stripReload,
-    askConfirm,
-    cancelConfirm,
     applyUpdate,
   }
 }

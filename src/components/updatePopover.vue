@@ -4,28 +4,18 @@ import versionRow from './versionRow.vue'
 
 defineProps<{
   pending: VersionGroup[]
-  confirming: boolean
+  updating: boolean
 }>()
 
 const emit = defineEmits<{
   update: []
-  cancel: []
 }>()
 </script>
 
 <template>
   <aside class="popover" aria-label="可用更新">
     <div class="sticky">
-      <template v-if="!confirming">
-        <button type="button" class="action" @click="emit('update')">更新</button>
-      </template>
-      <template v-else>
-        <p class="warn">当前这轮会重新开始，已完成的练习次数还在。</p>
-        <div class="row">
-          <button type="button" class="ghost" @click="emit('cancel')">取消</button>
-          <button type="button" class="action" @click="emit('update')">确定更新</button>
-        </div>
-      </template>
+      <button type="button" class="action" :disabled="updating" @click="emit('update')">更新</button>
     </div>
     <version-row
       v-for="group in pending"
@@ -64,36 +54,18 @@ const emit = defineEmits<{
   background: var(--paper);
 }
 
-.action,
-.ghost {
+.action {
   min-height: 44px;
   width: 100%;
   padding: 6px 10px;
   border: 3px solid var(--line);
   border-radius: 14px;
   font-weight: 800;
-}
-
-.action {
   background: var(--teal);
   color: #fff;
 }
 
-.ghost {
-  background: var(--paper);
-}
-
-.warn {
-  margin: 0 0 4px;
-  color: var(--coral);
-  font-weight: 800;
-  font-size: 0.88rem;
-  line-height: 1.25;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.action:disabled {
+  opacity: 0.65;
 }
 </style>

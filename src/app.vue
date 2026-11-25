@@ -5,7 +5,7 @@ import { useAppVersions } from './composables/useAppVersions'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import playSwitch from './components/playSwitch.vue'
 import { playKindOf } from './logic/playKind'
-import { createAppSession, hasBusyProgress } from './session/appSession'
+import { createAppSession } from './session/appSession'
 import busCompleteView from './views/busCompleteView.vue'
 import busView from './views/busView.vue'
 import completeView from './views/completeView.vue'
@@ -19,7 +19,7 @@ const state = reactive(session.state)
 const problem = computed(() => state.problems[state.index])
 const versions = useAppVersions()
 const install = useInstallPrompt()
-const { pending, history, confirming, askConfirm, cancelConfirm, applyUpdate } = versions
+const { pending, history, updating, applyUpdate } = versions
 const {
   showInstall,
   kind: installKind,
@@ -42,10 +42,6 @@ function onKey(event: KeyboardEvent) {
 }
 
 function onUpdate() {
-  if (hasBusyProgress(state) && !confirming.value) {
-    askConfirm()
-    return
-  }
   applyUpdate()
 }
 
@@ -80,9 +76,8 @@ onUnmounted(() => {
         <update-popover
           v-if="showUpdate"
           :pending="pending"
-          :confirming="confirming"
+          :updating="updating"
           @update="onUpdate"
-          @cancel="cancelConfirm"
         />
       </div>
     </header>
@@ -158,7 +153,7 @@ onUnmounted(() => {
       :build-version="versions.buildVersion"
       :pending="pending"
       :history="history"
-      :confirming="confirming"
+      :updating="updating"
       :show-install="showInstall"
       :install-kind="installKind"
       :install-guide="installGuide"
@@ -169,7 +164,6 @@ onUnmounted(() => {
       @reset-cancel="session.cancelReset"
       @reset-confirm="session.confirmReset"
       @update="onUpdate"
-      @cancel-update="cancelConfirm"
       @install="requestInstall"
     />
   </div>

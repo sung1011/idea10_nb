@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.6', version: '0.6.6', date: '2026-11-25', summary: '跷跷板答题反馈' },
+  { id: 'v0.6.7', version: '0.6.7', date: '2026-11-25', summary: '更新不再二次确认' },
 ]
 
 function mountApp() {
@@ -122,7 +122,7 @@ describe('界面响应', () => {
     vueApp.unmount()
   })
 
-  it('做题中更新需确认，取消不刷新', async () => {
+  it('做题中点更新立即刷新，不出现二次确认；连点只触发一次', async () => {
     const replaced: string[] = []
     vi.spyOn(window.location, 'replace').mockImplementation((url) => {
       replaced.push(String(url))
@@ -133,24 +133,17 @@ describe('界面响应', () => {
     await nextTick()
     button(el, '更新').click()
     await nextTick()
-    expect(el.textContent).toContain('当前这轮会重新开始')
-    expect(replaced).toEqual([])
-
-    button(el, '取消').click()
-    await nextTick()
     expect(el.textContent).not.toContain('当前这轮会重新开始')
-    expect(replaced).toEqual([])
-    expect(el.querySelector('.blank')?.textContent).toBe('3')
-
+    expect(el.textContent).not.toContain('确定更新')
+    expect(replaced.filter((href) => href.includes('_reload='))).toHaveLength(1)
     button(el, '更新').click()
     await nextTick()
-    button(el, '确定更新').click()
-    await nextTick()
-    expect(replaced.some((href) => href.includes('_reload='))).toBe(true)
+    expect(replaced.filter((href) => href.includes('_reload='))).toHaveLength(1)
+    expect((el.querySelector('.sticky button.action') as HTMLButtonElement | null)?.disabled).toBe(true)
     vueApp.unmount()
   })
 
-  it('设置的更新页对未完成轮次也要确认', async () => {
+  it('设置页更新入口同样立即刷新，不二次确认', async () => {
     const replaced: string[] = []
     vi.spyOn(window.location, 'replace').mockImplementation((url) => {
       replaced.push(String(url))
@@ -167,15 +160,13 @@ describe('界面响应', () => {
     expect(action?.textContent?.trim()).toBe('更新')
     action?.click()
     await nextTick()
-    expect(el.textContent).toContain('当前这轮会重新开始')
-    expect(replaced).toEqual([])
-    button(el, '取消').click()
+    expect(el.textContent).not.toContain('当前这轮会重新开始')
+    expect(el.textContent).not.toContain('确定更新')
+    expect(replaced.filter((href) => href.includes('_reload='))).toHaveLength(1)
+    action?.click()
     await nextTick()
-    button(el, '题目').click()
-    await nextTick()
-    button(el, '返回').click()
-    await nextTick()
-    expect(el.querySelector('.blank')?.textContent).toBe('3')
+    expect(replaced.filter((href) => href.includes('_reload='))).toHaveLength(1)
+    expect(action?.disabled).toBe(true)
     vueApp.unmount()
   })
 
@@ -220,7 +211,7 @@ describe('界面响应', () => {
     again.vueApp.unmount()
   })
 
-  it('坐车有进展时更新要确认；完成页不无谓确认', async () => {
+  it('坐车有进展时点更新也立即刷新，不二次确认', async () => {
     const replaced: string[] = []
     vi.spyOn(window.location, 'replace').mockImplementation((url) => {
       replaced.push(String(url))
@@ -247,8 +238,8 @@ describe('界面响应', () => {
     await nextTick()
     button(el, '更新').click()
     await nextTick()
-    expect(el.textContent).toContain('当前这轮会重新开始')
-    expect(replaced).toEqual([])
+    expect(el.textContent).not.toContain('当前这轮会重新开始')
+    expect(replaced.filter((href) => href.includes('_reload='))).toHaveLength(1)
     vueApp.unmount()
   })
 

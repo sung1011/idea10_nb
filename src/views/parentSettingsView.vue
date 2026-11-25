@@ -24,7 +24,7 @@ defineProps<{
   buildVersion: string
   pending: VersionGroup[]
   history: VersionGroup[]
-  confirming: boolean
+  updating: boolean
   showInstall: boolean
   installKind: InstallKind
   installGuide: string
@@ -38,7 +38,6 @@ const emit = defineEmits<{
   resetCancel: []
   resetConfirm: []
   update: []
-  cancelUpdate: []
   install: []
 }>()
 
@@ -134,16 +133,7 @@ const modes: { id: Mode; label: string }[] = [
       <p class="label">当前版本 {{ buildVersion }}</p>
       <p v-if="pending.length === 0" class="locked">已是最新</p>
       <div v-else class="update-box">
-        <template v-if="!confirming">
-          <button type="button" class="install" @click="emit('update')">更新</button>
-        </template>
-        <template v-else>
-          <p class="warn">当前这轮会重新开始，已完成的练习次数还在。</p>
-          <div class="row">
-            <button type="button" class="ghost" @click="emit('cancelUpdate')">取消</button>
-            <button type="button" class="install" @click="emit('update')">确定更新</button>
-          </div>
-        </template>
+        <button type="button" class="install" :disabled="updating" @click="emit('update')">更新</button>
         <version-row
           v-for="group in pending"
           :key="`pending-${group.version}`"
