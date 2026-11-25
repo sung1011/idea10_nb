@@ -19,6 +19,10 @@ describe('parseSave', () => {
         firstTryCorrect: 8,
         hintUsed: 1,
         stickerCount: 2,
+        busTripsCompleted: 1,
+        busSoloCompleted: 1,
+        busAdjustCount: 2,
+        busHintCount: 3,
       }),
     ).toEqual({
       version: 1,
@@ -27,10 +31,14 @@ describe('parseSave', () => {
       firstTryCorrect: 8,
       hintUsed: 1,
       stickerCount: 2,
+      busTripsCompleted: 1,
+      busSoloCompleted: 1,
+      busAdjustCount: 2,
+      busHintCount: 3,
     })
   })
 
-  it('旧 5 题时期的 v1 统计仍可读', () => {
+  it('旧 5 题时期的 v1 统计仍可读，坐车字段补 0', () => {
     const legacy = {
       version: 1 as const,
       mode: 'mix' as const,
@@ -39,7 +47,22 @@ describe('parseSave', () => {
       hintUsed: 3,
       stickerCount: 12,
     }
-    expect(parseSave(legacy)).toEqual(legacy)
+    expect(parseSave(legacy)).toEqual({
+      ...legacy,
+      busTripsCompleted: 0,
+      busSoloCompleted: 0,
+      busAdjustCount: 0,
+      busHintCount: 0,
+    })
+  })
+
+  it('坐车字段非法则整份不可用，不部分写入', () => {
+    expect(
+      parseSave({
+        ...DEFAULT_SAVE,
+        busAdjustCount: -2,
+      }),
+    ).toBeNull()
   })
 
   it('损坏或版本不对返回 null', () => {

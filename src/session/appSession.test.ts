@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ACKED_VERSION_KEY } from '../logic/appVersion'
 import { mulberry32, problemKey } from '../logic/makeProblem'
+import { currentStation, onboardCount } from '../logic/busMove'
 import { DEFAULT_SAVE, STORAGE_KEY, memoryStorage } from '../storage/appStorage'
-import { createAppSession, hasRoundProgress } from './appSession'
+import { createAppSession, hasBusyProgress, hasRoundProgress } from './appSession'
 
 function answerCurrent(session: ReturnType<typeof createAppSession>) {
   const problem = session.state.problems[session.state.index]
@@ -239,3 +240,208 @@ describe('练习会话', () => {
     expect(session.state.input).toBe('7')
   })
 })
+
+function touchBus(session: ReturnType<typeof createAppSession>) {
+  const play = session.state.bus
+  if (!play) throw new Error('no bus')
+  if (currentStation(play).kind === 'board') {
+    const next = play.waiting[0]
+    if (!next) throw new Error('no waiting')
+    session.busTapWaiting(next.id)
+    return
+  }
+  const index = play.seats.findIndex((seat) => seat)
+  session.busTapSeat(index)
+}
+
+function passCurrentStop(session: ReturnType<typeof createAppSession>) {
+  const play = session.state.bus
+  if (!play) throw new Error('no bus')
+  const target = currentStation(play).target
+  if (currentStation(play).kind === 'board') {
+    while (onboardCount(play.seats) < target) {
+      const next = play.waiting[0]
+      if (!next) throw new Error('no waiting')
+      session.busTapWaiting(next.id)
+    }
+  } else {
+    while (onboardCount(play.seats) > target) {
+      const index = play.seats.findIndex((seat) => seat)
+      session.busTapSeat(index)
+    }
+  }
+  session.busDepart()
+}
+
+describe('坐车会话', () => {
+  it('默认仍是算术；坐车与算术内存互留；数字键不污染坐车', () => {
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(30),
+      reducedMotion: () => true,
+    })
+    session.tapDigit('3')
+    session.openBus()
+    expect(session.state.view).toBe('bus')
+    expect(session.state.bus).toBeTruthy()
+    const key = new KeyboardEvent('keydown', { key: '7', bubbles: true, cancelable: true })
+    Object.defineProperty(key, 'target', { value: document.body })
+    session.handleKeydown(key)
+    expect(session.state.input).toBe('3')
+    session.openPractice()
+    expect(session.state.view).toBe('practice')
+    expect(session.state.input).toBe('3')
+    expect(session.state.bus).toBeTruthy()
+  })
+
+  it('从坐车进设置改算术模式，返回不丢车局', () => {
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(31),
+      reducedMotion: () => true,
+    })
+    session.openBus()
+    const firstStop = session.state.bus?.trip.stations[0]?.name
+    touchBus(session)
+    session.openSettings()
+    session.setMode('add')
+    session.closeSettings()
+    expect(session.state.view).toBe('bus')
+    expect(session.state.bus?.trip.stations[0]?.name).toBe(firstStop)
+    expect(session.state.bus?.stack.length).toBe(1)
+    expect(session.state.mode).toBe('add')
+  })
+
+  it('未完成坐车算更新进度；完成页不算；算术完成也不误报', () => {
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(32),
+      reducedMotion: () => true,
+    })
+    expect(hasBusyProgress(session.state)).toBe(false)
+    session.openBus()
+    expect(hasBusyProgress(session.state)).toBe(false)
+    touchBus(session)
+    expect(hasBusyProgress(session.state)).toBe(true)
+    session.openSettings()
+    expect(hasBusyProgress(session.state)).toBe(true)
+    session.closeSettings()
+    while (!session.state.bus?.settled) passCurrentStop(session)
+    expect(session.state.view).toBe('busComplete')
+    expect(hasBusyProgress(session.state)).toBe(false)
+    session.openSettings()
+    expect(hasBusyProgress(session.state)).toBe(false)
+  })
+
+  it('完成五站只结算一次；独立完成允许试错；看帮手不算独立', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(33),
+      reducedMotion: () => true,
+    })
+    session.openBus()
+    session.busDepart()
+    expect(session.state.bus?.adjustThisTrip).toBe(1)
+    session.busDepart()
+    expect(session.state.bus?.adjustThisTrip).toBe(1)
+    while (!session.state.bus?.settled) passCurrentStop(session)
+    expect(session.state.stats.busTripsCompleted).toBe(1)
+    expect(session.state.stats.busSoloCompleted).toBe(1)
+    expect(session.state.stats.busAdjustCount).toBe(1)
+    session.anotherBus()
+    session.anotherBus()
+    expect(session.state.stats.busTripsCompleted).toBe(1)
+    session.busHelper()
+    while (!session.state.bus?.settled) passCurrentStop(session)
+    expect(session.state.stats.busTripsCompleted).toBe(2)
+    expect(session.state.stats.busSoloCompleted).toBe(1)
+    expect(session.state.stats.busHintCount).toBe(1)
+  })
+
+  it('动画连点不重复过站；设置会先落地动画', () => {
+    let pending: (() => void) | null = null
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(34),
+      reducedMotion: () => false,
+      delay: (fn) => {
+        pending = fn
+        return 1
+      },
+      cancelDelay: () => {
+        pending = null
+      },
+    })
+    session.openBus()
+    const target = currentStation(session.state.bus!).target
+    if (currentStation(session.state.bus!).kind === 'board') {
+      while (onboardCount(session.state.bus!.seats) < target) {
+        session.busTapWaiting(session.state.bus!.waiting[0]!.id)
+      }
+    } else {
+      while (onboardCount(session.state.bus!.seats) > target) {
+        session.busTapSeat(session.state.bus!.seats.findIndex((seat) => seat))
+      }
+    }
+    session.busDepart()
+    expect(session.state.bus?.moving).toBe(true)
+    session.busDepart()
+    session.busTapSeat(0)
+    expect(session.state.bus?.stationIndex).toBe(0)
+    session.openSettings()
+    expect(session.state.bus?.moving).toBe(false)
+    expect(session.state.bus?.stationIndex).toBe(1)
+    expect(pending).toBeNull()
+    session.closeSettings()
+    expect(session.state.view).toBe('bus')
+  })
+
+  it('无语音与 onerror 都出看站牌；刷新丢中途局但保留已存统计', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(35),
+      reducedMotion: () => true,
+      synth: null,
+    })
+    session.openBus()
+    session.busSpeak()
+    expect(session.state.speakFail).toContain('读不出来')
+    while (!session.state.bus?.settled) passCurrentStop(session)
+    expect(session.state.stats.busTripsCompleted).toBe(1)
+    const again = createAppSession({ storage, rng: mulberry32(36), reducedMotion: () => true })
+    expect(again.state.view).toBe('practice')
+    expect(again.state.bus).toBeNull()
+    expect(again.state.stats.busTripsCompleted).toBe(1)
+    expect(again.state.stats.roundsCompleted).toBe(0)
+  })
+
+  it('重置清坐车统计；损坏存档完成坐车也不覆盖', () => {
+    const storage = memoryStorage({ [STORAGE_KEY]: '{bad' })
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(37),
+      reducedMotion: () => true,
+    })
+    session.openBus()
+    while (!session.state.bus?.settled) passCurrentStop(session)
+    expect(storage.getItem(STORAGE_KEY)).toBe('{bad')
+    expect(session.state.stats.busTripsCompleted).toBe(0)
+
+    const ok = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(38),
+      reducedMotion: () => true,
+    })
+    ok.openBus()
+    while (!ok.state.bus?.settled) passCurrentStop(ok)
+    ok.openSettings()
+    ok.requestReset()
+    ok.confirmReset()
+    expect(ok.state.stats.busTripsCompleted).toBe(0)
+    expect(ok.state.view).toBe('practice')
+    expect(ok.state.bus).toBeNull()
+  })
+})
+

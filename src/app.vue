@@ -3,7 +3,9 @@ import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import updatePopover from './components/updatePopover.vue'
 import { useAppVersions } from './composables/useAppVersions'
 import { useInstallPrompt } from './composables/useInstallPrompt'
-import { createAppSession, hasRoundProgress } from './session/appSession'
+import { createAppSession, hasBusyProgress } from './session/appSession'
+import busCompleteView from './views/busCompleteView.vue'
+import busView from './views/busView.vue'
 import completeView from './views/completeView.vue'
 import parentSettingsView from './views/parentSettingsView.vue'
 import practiceView from './views/practiceView.vue'
@@ -22,13 +24,14 @@ const {
   requestInstall,
 } = install
 const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
+const ticket = computed(() => state.bus?.trip.initialOnboard[0] ?? { kind: 'cat' as const, tint: 'gold' as const })
 
 function onKey(event: KeyboardEvent) {
   session.handleKeydown(event)
 }
 
 function onUpdate() {
-  if (hasRoundProgress(state) && !confirming.value) {
+  if (hasBusyProgress(state) && !confirming.value) {
     askConfirm()
     return
   }
@@ -41,6 +44,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
+  session.dispose()
 })
 </script>
 
@@ -49,6 +53,22 @@ onUnmounted(() => {
     <header class="top">
       <p class="brand">一起算</p>
       <div v-if="state.view !== 'settings'" class="gear-wrap">
+        <button
+          v-if="state.view === 'practice' || state.view === 'complete'"
+          type="button"
+          class="switch"
+          @click="session.openBus()"
+        >
+          坐车
+        </button>
+        <button
+          v-else
+          type="button"
+          class="switch"
+          @click="session.openPractice()"
+        >
+          算术
+        </button>
         <button
           type="button"
           class="gear"
@@ -88,12 +108,37 @@ onUnmounted(() => {
       @again="session.anotherRound"
     />
 
+    <bus-view
+      v-else-if="state.view === 'bus' && state.bus"
+      :play="state.bus"
+      :speak-fail="state.speakFail"
+      @wait="session.busTapWaiting"
+      @seat="session.busTapSeat"
+      @off="session.busTapOff"
+      @undo="session.busUndo"
+      @reset-stop="session.busResetStop"
+      @depart="session.busDepart"
+      @helper="session.busHelper"
+      @speak="session.busSpeak"
+    />
+
+    <bus-complete-view
+      v-else-if="state.view === 'busComplete'"
+      :kind="ticket.kind"
+      :tint="ticket.tint"
+      @again="session.anotherBus"
+    />
+
     <parent-settings-view
       v-else-if="state.view === 'settings'"
       :mode="state.mode"
       :rounds-completed="state.stats.roundsCompleted"
       :first-try-correct="state.stats.firstTryCorrect"
       :hint-used="state.stats.hintUsed"
+      :bus-trips-completed="state.stats.busTripsCompleted"
+      :bus-solo-completed="state.stats.busSoloCompleted"
+      :bus-adjust-count="state.stats.busAdjustCount"
+      :bus-hint-count="state.stats.busHintCount"
       :storage-message="state.storageMessage"
       :reset-confirming="state.resetConfirming"
       :build-version="versions.buildVersion"
@@ -142,9 +187,12 @@ onUnmounted(() => {
 .gear-wrap {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
 }
 
-.gear {
+.gear,
+.switch {
   min-height: 44px;
   padding: 8px 12px;
   border: 3px solid var(--line);

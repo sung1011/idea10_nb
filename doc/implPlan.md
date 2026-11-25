@@ -7,8 +7,11 @@
 - `src/logic/makeProblem.ts` 出题：加法 `a+b≤10`，减法 `a≥b`，一轮 10 题不重复，混合必含加减，含 0 题（操作数或答案为 0）每轮最多 1 道
 - `src/storage/appStorage.ts` 键 `idea10Nb.v1`；损坏不覆盖；写失败不假报
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
-- `src/session/appSession.ts` 练习 / 完成 / 设置状态机
-- `src/views/` 三视图；设置内页签「题目」「更新」；`src/components/` 键盘、积木、贴纸、更新框
+- `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车状态机
+- `src/logic/busRoute.ts` / `busMove.ts`：可解五站、当站撤回、发车少/多
+- `src/views/` 算术、完成、设置、坐车；设置内页签「题目」「更新」
+- `src/components/` 键盘、积木、贴纸、车票、动物脸、巴士、更新框
+- 动物 / 巴士 / 路线 / 车票用 Vue+SVG/CSS，与游戏页同一组件
 - `src/composables/useInstallPrompt.ts` 缓存 `beforeinstallprompt`，不注册 Service Worker
 - `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`
 - `yiqisuan-assets/approved-app-icon.jpg` 用户确认的主图标原图；`scripts/makeIcons.sh` 只做高质量缩放转 PNG
@@ -19,6 +22,8 @@
 - 首次答对：该题第一次确定就对（可用提示）
 - 使用提示：该题第一次展开积木
 - 三项都在完成时一次性写入；刷新中途轮次作废并重开新轮
+- 坐车四项（坐车次数 / 独立完成 / 调整次数 / 坐车提示）仅 5 站完成时写入；旧 v1 缺字段当 0
+- 独立完成允许发车试错和撤回，只要没开小帮手；调整只计发车失败
 - 旧 `idea10Nb.v1` 可继续读；ack 在单独键 `idea10Nb.ackedVersion`
 - 记录不跨设备；独立窗口与浏览器标签页可能隔离
 
@@ -28,7 +33,7 @@
 - 远端版本号大于当前构建才提示；不把尚未加载的新版本写成 ack
 - 设置按钮右下 popover，内部 sticky「更新」；设置页打开时隐藏
 - 「更新」用 `_reload` 时间戳 `location.replace`，不注册 Service Worker
-- 练习中已有进展需二次确认；取消不 ack
+- 练习或坐车中已有进展需二次确认；完成页不误报；取消不 ack
 
 ## 桌面 App
 

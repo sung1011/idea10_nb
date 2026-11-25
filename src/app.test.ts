@@ -4,8 +4,8 @@ import app from './app.vue'
 import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
-  { id: 'v0.5.0', version: '0.5.0', date: '2026-11-26', summary: '测试用更新' },
-  { id: 'v0.4.0', version: '0.4.0', date: '2026-11-24', summary: '设置页签' },
+  { id: 'v0.6.0', version: '0.6.0', date: '2026-11-28', summary: '测试用更新' },
+  { id: 'v0.5.0', version: '0.5.0', date: '2026-11-25', summary: '坐车' },
 ]
 
 function mountApp() {
@@ -89,7 +89,7 @@ describe('界面响应', () => {
     const { el, vueApp } = mountApp()
     await flush()
     expect(el.textContent).toContain('更新')
-    expect(el.textContent).toContain('0.5.0')
+    expect(el.textContent).toContain('0.6.0')
     expect(el.querySelector('.popover')).toBeTruthy()
     expect(el.querySelector('.sticky')?.textContent).toContain('更新')
     expect([...el.querySelectorAll('button')].some((node) => node.textContent?.trim() === '3')).toBe(true)
@@ -165,4 +165,144 @@ describe('界面响应', () => {
     expect(el.querySelector('.blank')?.textContent).toBe('3')
     vueApp.unmount()
   })
+
+  it('顶栏坐车与算术切换保留输入，设置能看到坐车统计', async () => {
+    const { el, vueApp } = mountApp()
+    await nextTick()
+    button(el, '3').click()
+    await nextTick()
+    button(el, '坐车').click()
+    await nextTick()
+    expect(el.textContent).toContain('发车')
+    expect(el.querySelectorAll('[data-seat]').length).toBe(10)
+    expect(el.textContent).toMatch(/家门口|花园/)
+    button(el, '算术').click()
+    await nextTick()
+    expect(el.querySelector('.blank')?.textContent).toBe('3')
+    button(el, '设置').click()
+    await nextTick()
+    expect(el.textContent).toContain('坐车次数 0')
+    expect(el.textContent).toContain('独立完成 0')
+    vueApp.unmount()
+  })
+
+  it('坐车有进展时更新要确认；完成页不无谓确认', async () => {
+    const replaced: string[] = []
+    vi.spyOn(window.location, 'replace').mockImplementation((url) => {
+      replaced.push(String(url))
+    })
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: String(query).includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent() {
+        return false
+      },
+      onchange: null,
+    }))
+    const { el, vueApp } = mountApp()
+    await flush()
+    button(el, '坐车').click()
+    await nextTick()
+    const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement | null
+    const filled = el.querySelector('[data-animal]:not([data-animal=""])') as HTMLButtonElement | null
+    ;(waiting ?? filled)?.click()
+    await nextTick()
+    button(el, '更新').click()
+    await nextTick()
+    expect(el.textContent).toContain('当前这轮会重新开始')
+    expect(replaced).toEqual([])
+    vueApp.unmount()
+  })
 })
+
+function occupiedSeats(el: HTMLElement) {
+  return [...el.querySelectorAll('[data-seat]')].filter((node) => node.getAttribute('data-animal')).length
+}
+
+async function playOneStop(el: HTMLElement) {
+  const target = Number(/车上要有 (\d+) 只/.exec(el.textContent ?? '')?.[1])
+  if (!Number.isFinite(target)) throw new Error('no target')
+  const board = el.textContent?.includes('候车')
+  if (board) {
+    while (occupiedSeats(el) < target) {
+      const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement | null
+      if (!waiting) throw new Error('no waiting')
+      waiting.click()
+      await nextTick()
+    }
+  } else {
+    while (occupiedSeats(el) > target) {
+      const seat = [...el.querySelectorAll('[data-seat]')].find((node) => node.getAttribute('data-animal')) as
+        | HTMLButtonElement
+        | undefined
+      if (!seat) throw new Error('no seat')
+      seat.click()
+      await nextTick()
+    }
+  }
+  button(el, '发车').click()
+  await nextTick()
+}
+
+describe('坐车界面整局', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.body.innerHTML = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => newerRemote,
+      })),
+    )
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: String(query).includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent() {
+        return false
+      },
+      onchange: null,
+    }))
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+    localStorage.clear()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('故意错一次、提示一次后走完五站，统计只加一次', async () => {
+    const { el, vueApp } = mountApp()
+    await nextTick()
+    button(el, '坐车').click()
+    await nextTick()
+    button(el, '发车').click()
+    await nextTick()
+    expect(el.textContent).toMatch(/少了|多了/)
+    button(el, '小帮手').click()
+    await nextTick()
+    expect(el.textContent).toContain('空位')
+    for (let i = 0; i < 5; i += 1) {
+      await playOneStop(el)
+    }
+    expect(el.textContent).toContain('车票')
+    button(el, '设置').click()
+    await nextTick()
+    expect(el.textContent).toContain('坐车次数 1')
+    expect(el.textContent).toContain('独立完成 0')
+    expect(el.textContent).toContain('调整次数 1')
+    expect(el.textContent).toContain('坐车提示 1')
+    vueApp.unmount()
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').busTripsCompleted).toBe(1)
+  })
+})
+

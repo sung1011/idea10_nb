@@ -12,6 +12,10 @@ defineProps<{
   roundsCompleted: number
   firstTryCorrect: number
   hintUsed: number
+  busTripsCompleted: number
+  busSoloCompleted: number
+  busAdjustCount: number
+  busHintCount: number
   storageMessage: string
   resetConfirming: boolean
   buildVersion: string
@@ -96,13 +100,20 @@ const modes: { id: Mode; label: string }[] = [
         <li>首次答对 {{ firstTryCorrect }}</li>
         <li>使用提示 {{ hintUsed }}</li>
       </ul>
+      <p class="label">小动物坐车</p>
+      <ul class="stats">
+        <li>坐车次数 {{ busTripsCompleted }}</li>
+        <li>独立完成 {{ busSoloCompleted }}</li>
+        <li>调整次数 {{ busAdjustCount }}</li>
+        <li>坐车提示 {{ busHintCount }}</li>
+      </ul>
       <p v-if="storageMessage" class="warn">{{ storageMessage }}</p>
 
       <template v-if="!resetConfirming">
         <button type="button" class="danger" @click="emit('resetAsk')">重置本应用数据</button>
       </template>
       <div v-else class="confirm">
-        <p>只清除本应用在这台设备上的练习记录和设置，不能恢复。</p>
+        <p>只清除本应用在这台设备上的练习记录、坐车记录和设置，不能恢复。</p>
         <div class="row">
           <button type="button" class="ghost" @click="emit('resetCancel')">取消</button>
           <button type="button" class="danger" @click="emit('resetConfirm')">确认重置</button>

@@ -1,6 +1,22 @@
 import { reactive } from 'vue'
 import { clearAcked } from '../logic/appVersion'
+import {
+  arriveNext,
+  createBusPlay,
+  currentStation,
+  depart,
+  hasBusProgress as playHasProgress,
+  resetStation,
+  tapOffArea,
+  tapSeat,
+  tapWaiting,
+  toggleHelper,
+  undoLast,
+  type BusPlay,
+} from '../logic/busMove'
+import { makeBusTrip, stationTaskText } from '../logic/busRoute'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
+import { speakChinese, wrapBrowserSynth, type SpeakSynth } from '../logic/speakTask'
 import {
   browserStorage,
   DEFAULT_SAVE,
@@ -11,9 +27,10 @@ import {
   type StorageLike,
 } from '../storage/appStorage'
 
-export type View = 'practice' | 'complete' | 'settings'
+export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete'
 
 export const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
+export const BUS_MOVE_MS = 480
 
 export type AppState = {
   view: View
@@ -34,7 +51,10 @@ export type AppState = {
   feedback: '' | 'wrong'
   resetConfirming: boolean
   settingsOpenedMode: Mode | null
+  settingsOpenedView: View | null
   stickerEmoji: string
+  bus: BusPlay | null
+  speakFail: string
 }
 
 export function hasRoundProgress(state: AppState): boolean {
@@ -49,6 +69,10 @@ export function hasRoundProgress(state: AppState): boolean {
   )
 }
 
+export function hasBusyProgress(state: AppState): boolean {
+  return hasRoundProgress(state) || playHasProgress(state.bus)
+}
+
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   const tag = target.tagName
@@ -57,10 +81,32 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
 }
 
-export function createAppSession(options: { storage?: StorageLike; rng?: () => number } = {}) {
+export function createAppSession(
+  options: {
+    storage?: StorageLike
+    rng?: () => number
+    delay?: (fn: () => void, ms: number) => number
+    cancelDelay?: (id: number) => void
+    reducedMotion?: () => boolean
+    synth?: SpeakSynth | null
+  } = {},
+) {
   const storage = options.storage ?? browserStorage()
   const rng = options.rng ?? Math.random
+  const delay = options.delay ?? ((fn, ms) => window.setTimeout(fn, ms))
+  const cancelDelay = options.cancelDelay ?? ((id) => window.clearTimeout(id))
+  const reducedMotion =
+    options.reducedMotion ??
+    (() =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const loaded = loadSave(storage)
+  let busTimer = 0
+  const synthOf = () =>
+    options.synth !== undefined
+      ? options.synth
+      : wrapBrowserSynth(typeof window !== 'undefined' ? window.speechSynthesis : null)
 
   const state = reactive<AppState>({
     view: 'practice',
@@ -81,8 +127,18 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     feedback: '',
     resetConfirming: false,
     settingsOpenedMode: null,
+    settingsOpenedView: null,
     stickerEmoji: STICKERS[0],
+    bus: null,
+    speakFail: '',
   })
+
+  function clearBusTimer() {
+    if (busTimer) {
+      cancelDelay(busTimer)
+      busTimer = 0
+    }
+  }
 
   function startRound(mode: Mode = state.mode) {
     state.mode = mode
@@ -138,6 +194,38 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     })
   }
 
+  function finishBus() {
+    const play = state.bus
+    if (!play || !play.settled || play.accounted) return
+    play.accounted = true
+    state.view = 'busComplete'
+    persist({
+      ...state.stats,
+      busTripsCompleted: state.stats.busTripsCompleted + 1,
+      busSoloCompleted: state.stats.busSoloCompleted + (play.hintThisTrip === 0 ? 1 : 0),
+      busAdjustCount: state.stats.busAdjustCount + play.adjustThisTrip,
+      busHintCount: state.stats.busHintCount + play.hintThisTrip,
+    })
+  }
+
+  function flushBusMove() {
+    const play = state.bus
+    if (!play?.moving) {
+      clearBusTimer()
+      return
+    }
+    clearBusTimer()
+    const result = arriveNext(play)
+    if (result === 'done') finishBus()
+  }
+
+  function startBus() {
+    clearBusTimer()
+    state.bus = createBusPlay(makeBusTrip(rng))
+    state.speakFail = ''
+    state.view = 'bus'
+  }
+
   function tapDigit(digit: string) {
     if (state.view !== 'practice' || state.locked || state.settled) return
     if (!/^\d$/.test(digit)) return
@@ -189,16 +277,26 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
   }
 
   function openSettings() {
+    flushBusMove()
+    if (state.view !== 'settings') {
+      state.settingsOpenedView = state.view
+    }
     state.settingsOpenedMode = state.mode
     state.resetConfirming = false
     state.view = 'settings'
   }
 
   function closeSettings() {
-    const opened = state.settingsOpenedMode
+    const openedMode = state.settingsOpenedMode
+    const openedView = state.settingsOpenedView
     state.settingsOpenedMode = null
+    state.settingsOpenedView = null
     state.resetConfirming = false
-    if (opened != null && opened !== state.mode) {
+    if (openedView === 'bus' || openedView === 'busComplete') {
+      state.view = openedView
+      return
+    }
+    if (openedMode != null && openedMode !== state.mode) {
       startRound(state.mode)
       return
     }
@@ -220,6 +318,29 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     startRound(state.mode)
   }
 
+  function openBus() {
+    flushBusMove()
+    if (!state.bus || state.bus.settled) {
+      startBus()
+      return
+    }
+    state.view = 'bus'
+  }
+
+  function openPractice() {
+    flushBusMove()
+    if (state.settled) {
+      state.view = 'complete'
+      return
+    }
+    state.view = 'practice'
+  }
+
+  function anotherBus() {
+    if (state.view !== 'busComplete') return
+    startBus()
+  }
+
   function requestReset() {
     state.resetConfirming = true
   }
@@ -236,10 +357,13 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
       return
     }
     clearAcked(storage)
+    clearBusTimer()
     state.writable = true
     state.storageMessage = ''
     state.stats = { ...DEFAULT_SAVE }
     state.resetConfirming = false
+    state.bus = null
+    state.speakFail = ''
     startRound(DEFAULT_SAVE.mode)
   }
 
@@ -262,6 +386,85 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     }
   }
 
+  function withBus(action: (play: BusPlay) => void) {
+    const play = state.bus
+    if (!play || state.view !== 'bus' || play.settled) return
+    action(play)
+  }
+
+  function busTapWaiting(animalId: string) {
+    withBus((play) => {
+      tapWaiting(play, animalId)
+    })
+  }
+
+  function busTapSeat(index: number) {
+    withBus((play) => {
+      tapSeat(play, index)
+    })
+  }
+
+  function busTapOff(animalId: string) {
+    withBus((play) => {
+      tapOffArea(play, animalId)
+    })
+  }
+
+  function busUndo() {
+    withBus((play) => {
+      undoLast(play)
+    })
+  }
+
+  function busResetStop() {
+    withBus((play) => {
+      resetStation(play)
+    })
+  }
+
+  function busHelper() {
+    withBus((play) => {
+      toggleHelper(play)
+    })
+  }
+
+  function busDepart() {
+    withBus((play) => {
+      const result = depart(play)
+      if (result !== 'ok') return
+      if (reducedMotion()) {
+        const next = arriveNext(play)
+        if (next === 'done') finishBus()
+        return
+      }
+      clearBusTimer()
+      busTimer = delay(() => {
+        busTimer = 0
+        if (!state.bus?.moving) return
+        const next = arriveNext(state.bus)
+        if (next === 'done') finishBus()
+      }, BUS_MOVE_MS)
+    })
+  }
+
+  function busSpeak() {
+    const play = state.bus
+    if (!play || play.settled) return
+    const station = currentStation(play)
+    const result = speakChinese({
+      text: stationTaskText(station.name, station.target),
+      synth: synthOf(),
+      onerror: () => {
+        state.speakFail = '读不出来，看站牌'
+      },
+    })
+    state.speakFail = result.ok ? '' : '读不出来，看站牌'
+  }
+
+  function dispose() {
+    clearBusTimer()
+  }
+
   return {
     state,
     tapDigit,
@@ -272,10 +475,23 @@ export function createAppSession(options: { storage?: StorageLike; rng?: () => n
     closeSettings,
     setMode,
     anotherRound,
+    openBus,
+    openPractice,
+    anotherBus,
     requestReset,
     cancelReset,
     confirmReset,
     handleKeydown,
+    busTapWaiting,
+    busTapSeat,
+    busTapOff,
+    busUndo,
+    busResetStop,
+    busHelper,
+    busDepart,
+    busSpeak,
+    flushBusMove,
+    dispose,
   }
 }
 

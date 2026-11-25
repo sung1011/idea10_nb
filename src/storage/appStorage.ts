@@ -10,6 +10,10 @@ export type SaveData = {
   firstTryCorrect: number
   hintUsed: number
   stickerCount: number
+  busTripsCompleted: number
+  busSoloCompleted: number
+  busAdjustCount: number
+  busHintCount: number
 }
 
 export const DEFAULT_SAVE: SaveData = {
@@ -19,6 +23,10 @@ export const DEFAULT_SAVE: SaveData = {
   firstTryCorrect: 0,
   hintUsed: 0,
   stickerCount: 0,
+  busTripsCompleted: 0,
+  busSoloCompleted: 0,
+  busAdjustCount: 0,
+  busHintCount: 0,
 }
 
 export type StorageLike = {
@@ -57,6 +65,18 @@ export function parseSave(raw: unknown): SaveData | null {
   if (roundsCompleted == null || firstTryCorrect == null || hintUsed == null || stickerCount == null) {
     return null
   }
+  const busTripsCompleted = rec.busTripsCompleted == null ? 0 : nonNegInt(rec.busTripsCompleted)
+  const busSoloCompleted = rec.busSoloCompleted == null ? 0 : nonNegInt(rec.busSoloCompleted)
+  const busAdjustCount = rec.busAdjustCount == null ? 0 : nonNegInt(rec.busAdjustCount)
+  const busHintCount = rec.busHintCount == null ? 0 : nonNegInt(rec.busHintCount)
+  if (
+    busTripsCompleted == null ||
+    busSoloCompleted == null ||
+    busAdjustCount == null ||
+    busHintCount == null
+  ) {
+    return null
+  }
   return {
     version: STORAGE_VERSION,
     mode: rec.mode,
@@ -64,6 +84,10 @@ export function parseSave(raw: unknown): SaveData | null {
     firstTryCorrect,
     hintUsed,
     stickerCount,
+    busTripsCompleted,
+    busSoloCompleted,
+    busAdjustCount,
+    busHintCount,
   }
 }
 
