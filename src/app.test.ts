@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.7', version: '0.6.7', date: '2026-11-25', summary: '更新不再二次确认' },
+  { id: 'v0.6.8', version: '0.6.8', date: '2026-11-25', summary: '跷跷板左右对应算式' },
 ]
 
 function mountApp() {
@@ -266,13 +266,17 @@ describe('界面响应', () => {
     expect(playSwitch(el).value).toBe('seesaw')
     expect(el.querySelector('[data-seesaw]')).toBeTruthy()
     expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
+    const left = el.querySelector('[data-pan="left"]')?.getAttribute('data-count')
     const right = el.querySelector('[data-pan="right"]')?.getAttribute('data-count')
     const tilt = el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')
+    expect(left).toMatch(/^\d+$/)
     expect(right).toMatch(/^\d+$/)
     expect(tilt).toMatch(/^-?\d+(\.\d+)?$/)
+    expect(el.querySelector('[data-right-target]')).toBeTruthy()
     keypad(el, '1').click()
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('1')
+    expect(el.querySelector('[data-pan="left"]')?.getAttribute('data-count')).toBe(left)
     expect(el.querySelector('[data-pan="right"]')?.getAttribute('data-count')).toBe(right)
     expect(el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')).toBe(tilt)
     selectPlay(el, 'bus')

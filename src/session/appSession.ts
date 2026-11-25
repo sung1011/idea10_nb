@@ -36,7 +36,7 @@ import {
   tapSeesawHelp,
   type SeesawPlay,
 } from '../logic/seesawMove'
-import { seesawLeft } from '../logic/seesawProblem'
+import { seesawTarget } from '../logic/seesawProblem'
 import { speakChinese, wrapBrowserSynth, zhCount, type SpeakSynth } from '../logic/speakTask'
 import {
   browserStorage,
@@ -682,7 +682,7 @@ export function createAppSession(
       if (!tapSeesawHelp(play)) return
       persistAll()
       speakChinese({
-        text: zhCount(seesawLeft(play.problems[play.index]!)),
+        text: zhCount(seesawTarget(play.problems[play.index]!)),
         synth: synthOf(),
       })
     })

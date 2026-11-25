@@ -19,6 +19,8 @@ import { ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProbl
 import { seesawForDisk, type SeesawPlay } from '../logic/seesawMove'
 import { seesawRight } from '../logic/seesawProblem'
 
+// seesawRight 必须仍是 a：v3 档 play.right 存可变个数，idle 原点是 a 不是 answer。
+
 export type GameView = 'practice' | 'complete' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
 
 export type PracticeSnapshot = {

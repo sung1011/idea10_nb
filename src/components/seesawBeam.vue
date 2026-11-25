@@ -22,15 +22,15 @@ function dots(count: number) {
     <div class="beam-wrap" :style="{ transform: `rotate(${tilt}deg)` }">
       <div class="beam" data-beam>
         <div class="pan left" data-pan="left" :data-count="left">
-          <button type="button" class="goal" data-left-target :aria-label="`${left}`" @click="emit('help')">
-            {{ left }}
-          </button>
+          <p class="now" data-left-count>{{ left }}</p>
           <div class="fruit">
             <seesaw-apple v-for="item in dots(left)" :key="`l${item}`" />
           </div>
         </div>
         <div class="pan right" data-pan="right" :data-count="right">
-          <p class="now" data-right-count>{{ right }}</p>
+          <button type="button" class="goal" data-right-target :aria-label="`${right}`" @click="emit('help')">
+            {{ right }}
+          </button>
           <div class="fruit">
             <seesaw-apple v-for="item in dots(right)" :key="`r${item}`" />
           </div>

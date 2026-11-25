@@ -125,4 +125,37 @@ describe('parsePlay', () => {
     expect(kept?.practice.problems).toHaveLength(10)
     expect(kept?.bus).toBeTruthy()
   })
+
+  it('v3 idle 档 play.right 仍按 a 校验，不等于 answer 时不丢', () => {
+    const problems = [
+      { a: 3, b: 5, op: '+' as const, answer: 8 },
+      { a: 1, b: 1, op: '+' as const, answer: 2 },
+      { a: 2, b: 1, op: '+' as const, answer: 3 },
+      { a: 4, b: 1, op: '+' as const, answer: 5 },
+      { a: 5, b: 1, op: '+' as const, answer: 6 },
+      { a: 6, b: 1, op: '+' as const, answer: 7 },
+      { a: 0, b: 2, op: '+' as const, answer: 2 },
+      { a: 2, b: 2, op: '+' as const, answer: 4 },
+      { a: 3, b: 2, op: '+' as const, answer: 5 },
+      { a: 4, b: 2, op: '+' as const, answer: 6 },
+    ]
+    const seesaw = createSeesawPlay(problems)
+    expect(seesaw.right).toBe(3)
+    seesaw.input = '4'
+    seesaw.wrongOnce[0] = true
+    const snapshot = {
+      view: 'seesaw' as const,
+      practice: emptyPractice('mix', problems, '🍀'),
+      bus: createBusPlay(makeBusTrip(mulberry32(12))),
+      seesaw,
+    }
+    const parsed = parsePlay(JSON.parse(JSON.stringify(snapshot)), 'mix')
+    expect(parsed?.seesaw?.index).toBe(0)
+    expect(parsed?.seesaw?.input).toBe('4')
+    expect(parsed?.seesaw?.right).toBe(3)
+    expect(parsed?.seesaw?.wrongOnce[0]).toBe(true)
+    const broken = JSON.parse(JSON.stringify(snapshot)) as { seesaw: { right: number } }
+    broken.seesaw.right = 8
+    expect(parsePlay(broken, 'mix')?.seesaw).toBeNull()
+  })
 })

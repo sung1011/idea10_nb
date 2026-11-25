@@ -12,7 +12,7 @@ import {
   tapSeesawHelp,
   tiltDeg,
 } from './seesawMove'
-import { seesawLeft, seesawRight } from './seesawProblem'
+import { seesawRight, seesawTarget } from './seesawProblem'
 
 function addPlay() {
   return createSeesawPlay([
@@ -32,14 +32,16 @@ function addPlay() {
 describe('倾角与开题', () => {
   it('开题按数量差倾斜，已水平不自动过关', () => {
     const play = addPlay()
-    expect(tiltDeg(seesawLeft(play.problems[0]!), play.right)).toBe(tiltDeg(7, 3))
-    expect(tiltDeg(7, 3)).toBeLessThan(0)
+    expect(play.right).toBe(3)
+    expect(seesawTarget(play.problems[0]!)).toBe(7)
+    expect(tiltDeg(play.right, seesawTarget(play.problems[0]!))).toBe(tiltDeg(3, 7))
+    expect(tiltDeg(3, 7)).toBeGreaterThan(0)
     expect(play.settled).toBe(false)
     const flat = createSeesawPlay([
       { a: 5, b: 0, op: '+', answer: 5 },
       ...addPlay().problems.slice(1),
     ])
-    expect(tiltDeg(5, flat.right)).toBe(0)
+    expect(tiltDeg(flat.right, seesawTarget(flat.problems[0]!))).toBe(0)
     expect(flat.settled).toBe(false)
     expect(confirmSeesaw(flat)).toBe('empty')
   })
@@ -57,7 +59,7 @@ describe('选数与确定', () => {
     expect(confirmSeesaw(play)).toBe('empty')
   })
 
-  it('正确整批后右盘等于左盘', () => {
+  it('正确整批后可变个数等于目标', () => {
     const play = addPlay()
     tapSeesawDigit(play, '4')
     expect(confirmSeesaw(play)).toBe('correct')
@@ -69,7 +71,7 @@ describe('选数与确定', () => {
     expect(play.right).toBe(1)
   })
 
-  it('错答改到合法错误个数，还原后回到原右盘', () => {
+  it('错答改到合法错误个数，还原后回到原点 a', () => {
     const play = addPlay()
     tapSeesawDigit(play, '2')
     expect(confirmSeesaw(play)).toBe('wrong')

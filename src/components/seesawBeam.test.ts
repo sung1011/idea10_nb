@@ -44,4 +44,13 @@ describe('跷跷板反馈图形', () => {
     expect(el.querySelector('[data-feedback]')).toBeFalsy()
     vueApp.unmount()
   })
+
+  it('目标数字在右盘可点，左盘只显示当前个数', () => {
+    const { el, vueApp } = mountBeam({ left: 3, right: 8, tilt: 28, motion: 'idle' })
+    expect(el.querySelector('[data-right-target]')?.textContent?.trim()).toBe('8')
+    expect(el.querySelector('[data-left-count]')?.textContent?.trim()).toBe('3')
+    expect(el.querySelector('[data-pan="left"] button')).toBeFalsy()
+    expect(el.querySelector('[data-pan="right"] button')).toBeTruthy()
+    vueApp.unmount()
+  })
 })

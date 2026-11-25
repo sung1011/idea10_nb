@@ -3,9 +3,9 @@ import {
   isLegalCount,
   isSeesawCorrect,
   parseSeesawInput,
-  proposedRight,
-  seesawLeft,
+  proposedCount,
   seesawRight,
+  seesawTarget,
 } from './seesawProblem'
 
 export type SeesawMotion = 'idle' | 'apply' | 'hold' | 'restore' | 'level' | 'cheer'
@@ -20,6 +20,7 @@ export type SeesawPlay = {
   problems: Problem[]
   index: number
   input: string
+  /** 左盘当前个数。存档键仍为 right，idle 原点是 a。 */
   right: number
   motion: SeesawMotion
   outcome: '' | 'correct' | 'wrong'
@@ -47,7 +48,11 @@ export function currentProblem(play: SeesawPlay): Problem {
 }
 
 export function currentLeft(play: SeesawPlay): number {
-  return seesawLeft(currentProblem(play))
+  return play.right
+}
+
+export function currentTarget(play: SeesawPlay): number {
+  return seesawTarget(currentProblem(play))
 }
 
 export function originRight(play: SeesawPlay): number {
@@ -134,7 +139,7 @@ export function confirmSeesaw(play: SeesawPlay): SeesawConfirmResult {
   const problem = currentProblem(play)
   const value = parseSeesawInput(play.input)
   if (value == null) return 'empty'
-  const nextRight = proposedRight(problem, value)
+  const nextRight = proposedCount(problem, value)
   const legal = isLegalCount(nextRight)
   const correct = isSeesawCorrect(problem, play.input)
 
