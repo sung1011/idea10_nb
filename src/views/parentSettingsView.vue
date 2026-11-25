@@ -16,6 +16,9 @@ defineProps<{
   busSoloCompleted: number
   busAdjustCount: number
   busHintCount: number
+  seesawRoundsCompleted: number
+  seesawFirstTryCorrect: number
+  seesawHintCount: number
   storageMessage: string
   resetConfirming: boolean
   buildVersion: string
@@ -107,13 +110,19 @@ const modes: { id: Mode; label: string }[] = [
         <li>调整次数 {{ busAdjustCount }}</li>
         <li>坐车提示 {{ busHintCount }}</li>
       </ul>
+      <p class="label">跷跷板</p>
+      <ul class="stats">
+        <li>跷跷板次数 {{ seesawRoundsCompleted }}</li>
+        <li>首次答对 {{ seesawFirstTryCorrect }}</li>
+        <li>跷跷板提示 {{ seesawHintCount }}</li>
+      </ul>
       <p v-if="storageMessage" class="warn">{{ storageMessage }}</p>
 
       <template v-if="!resetConfirming">
         <button type="button" class="danger" @click="emit('resetAsk')">重置本应用数据</button>
       </template>
       <div v-else class="confirm">
-        <p>只清除本应用在这台设备上的练习记录、坐车记录和设置，不能恢复。</p>
+        <p>只清除本应用在这台设备上的练习记录、坐车记录、跷跷板记录和设置，不能恢复。</p>
         <div class="row">
           <button type="button" class="ghost" @click="emit('resetCancel')">取消</button>
           <button type="button" class="danger" @click="emit('resetConfirm')">确认重置</button>

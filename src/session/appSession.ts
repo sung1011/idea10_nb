@@ -19,6 +19,21 @@ import {
 } from '../logic/busMove'
 import { makeBusTrip } from '../logic/busRoute'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
+import {
+  arriveSeesawNext,
+  confirmSeesaw,
+  createSeesawPlay,
+  hasSeesawProgress,
+  restoreSeesaw,
+  SEESAW_HOLD_MS,
+  SEESAW_LEVEL_MS,
+  seesawForDisk,
+  tapSeesawDelete,
+  tapSeesawDigit,
+  tapSeesawHelp,
+  type SeesawPlay,
+} from '../logic/seesawMove'
+import { seesawLeft } from '../logic/seesawProblem'
 import { speakChinese, wrapBrowserSynth, zhCount, type SpeakSynth } from '../logic/speakTask'
 import {
   browserStorage,
@@ -37,10 +52,10 @@ import {
   type PlaySnapshot,
 } from '../storage/playSnapshot'
 
-export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete'
+export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
 
 export const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
-export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS }
+export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
 
 export type AppState = {
   view: View
@@ -64,6 +79,7 @@ export type AppState = {
   settingsOpenedView: View | null
   stickerEmoji: string
   bus: BusPlay | null
+  seesaw: SeesawPlay | null
 }
 
 export function hasRoundProgress(state: AppState): boolean {
@@ -79,7 +95,7 @@ export function hasRoundProgress(state: AppState): boolean {
 }
 
 export function hasBusyProgress(state: AppState): boolean {
-  return hasRoundProgress(state) || playHasProgress(state.bus)
+  return hasRoundProgress(state) || playHasProgress(state.bus) || hasSeesawProgress(state.seesaw)
 }
 
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -112,6 +128,7 @@ export function createAppSession(
       window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const loaded = loadSave(storage)
   let busTimer = 0
+  let seesawTimer = 0
   let hydrated = false
   const synthOf = () =>
     options.synth !== undefined
@@ -119,7 +136,7 @@ export function createAppSession(
       : wrapBrowserSynth(typeof window !== 'undefined' ? window.speechSynthesis : null)
 
   const statsOnly = (data: SaveData): SaveData => ({
-    version: 2,
+    version: 3,
     mode: data.mode,
     roundsCompleted: data.roundsCompleted,
     firstTryCorrect: data.firstTryCorrect,
@@ -129,6 +146,9 @@ export function createAppSession(
     busSoloCompleted: data.busSoloCompleted,
     busAdjustCount: data.busAdjustCount,
     busHintCount: data.busHintCount,
+    seesawRoundsCompleted: data.seesawRoundsCompleted ?? 0,
+    seesawFirstTryCorrect: data.seesawFirstTryCorrect ?? 0,
+    seesawHintCount: data.seesawHintCount ?? 0,
     play: data.play ?? null,
   })
 
@@ -154,6 +174,7 @@ export function createAppSession(
     settingsOpenedView: null,
     stickerEmoji: STICKERS[0],
     bus: null,
+    seesaw: null,
   })
 
   function clearBusTimer() {
@@ -163,25 +184,45 @@ export function createAppSession(
     }
   }
 
+  function clearSeesawTimer() {
+    if (seesawTimer) {
+      cancelDelay(seesawTimer)
+      seesawTimer = 0
+    }
+  }
+
   function buildPlay(): PlaySnapshot {
     const pendingMode =
       state.view === 'settings' &&
       state.settingsOpenedMode != null &&
       state.settingsOpenedMode !== state.mode
+    const opened = state.settingsOpenedView
     const view = gameViewFrom(
-      pendingMode && (state.settingsOpenedView === 'complete' || state.settingsOpenedView === 'practice')
+      pendingMode && (opened === 'complete' || opened === 'practice')
         ? 'practice'
-        : state.view,
-      pendingMode && state.settingsOpenedView === 'complete' ? 'practice' : state.settingsOpenedView,
+        : pendingMode && opened === 'seesawComplete'
+          ? 'seesaw'
+          : state.view,
+      pendingMode && (opened === 'complete' || opened === 'seesawComplete')
+        ? opened === 'seesawComplete'
+          ? 'seesaw'
+          : 'practice'
+        : opened,
       pendingMode ? false : state.settled,
     )
     const practice = pendingMode
       ? emptyPractice(state.mode, makeRound(state.mode, ROUND_SIZE, rng), state.stickerEmoji)
       : livePractice(state)
+    const seesaw = pendingMode
+      ? createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+      : state.seesaw
+        ? seesawForDisk(state.seesaw)
+        : null
     return {
       view,
       practice,
       bus: state.bus ? busForDisk(state.bus) : null,
+      seesaw,
     }
   }
 
@@ -302,15 +343,55 @@ export function createAppSession(
     persistAll()
   }
 
+  function finishSeesaw() {
+    const play = state.seesaw
+    if (!play || !play.settled || play.accounted) return
+    play.accounted = true
+    state.view = 'seesawComplete'
+    persistAll({
+      ...state.stats,
+      seesawRoundsCompleted: state.stats.seesawRoundsCompleted + 1,
+      seesawFirstTryCorrect: state.stats.seesawFirstTryCorrect + play.firstTryThisRound,
+      seesawHintCount: state.stats.seesawHintCount + play.hintThisRound,
+    })
+  }
+
+  function flushSeesawMove() {
+    const play = state.seesaw
+    if (!play?.moving) {
+      clearSeesawTimer()
+      return
+    }
+    clearSeesawTimer()
+    if (play.outcome === 'correct' || play.motion === 'level') {
+      const next = arriveSeesawNext(play)
+      if (next === 'done') finishSeesaw()
+      else persistAll()
+      return
+    }
+    restoreSeesaw(play)
+    persistAll()
+  }
+
+  function startSeesaw() {
+    clearSeesawTimer()
+    state.seesaw = createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+    cancelSpeech()
+    state.view = 'seesaw'
+    persistAll()
+  }
+
   if (loaded.data.play) {
     applyPractice(loaded.data.play.practice)
     state.bus = loaded.data.play.bus
+    state.seesaw = loaded.data.play.seesaw
     state.view = loaded.data.play.view
   } else {
     startRound(state.mode)
   }
   hydrated = true
   if (state.bus?.settled && !state.bus.accounted) finishBus()
+  if (state.seesaw?.settled && !state.seesaw.accounted) finishSeesaw()
 
   function tapDigit(digit: string) {
     if (state.view !== 'practice' || state.locked || state.settled) return
@@ -374,6 +455,7 @@ export function createAppSession(
   function openSettings() {
     cancelSpeech()
     flushBusMove()
+    flushSeesawMove()
     if (state.view !== 'settings') {
       state.settingsOpenedView = state.view
     }
@@ -389,13 +471,29 @@ export function createAppSession(
     state.settingsOpenedMode = null
     state.settingsOpenedView = null
     state.resetConfirming = false
+    if (openedMode != null && openedMode !== state.mode) {
+      clearSeesawTimer()
+      state.seesaw = createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+      startRound(state.mode)
+      if (openedView === 'bus' || openedView === 'busComplete') {
+        state.view = openedView
+        persistAll()
+        return
+      }
+      if (openedView === 'seesaw' || openedView === 'seesawComplete') {
+        state.view = 'seesaw'
+        persistAll()
+      }
+      return
+    }
     if (openedView === 'bus' || openedView === 'busComplete') {
       state.view = openedView
       persistAll()
       return
     }
-    if (openedMode != null && openedMode !== state.mode) {
-      startRound(state.mode)
+    if (openedView === 'seesaw' || openedView === 'seesawComplete') {
+      state.view = openedView
+      persistAll()
       return
     }
     if (state.settled) {
@@ -420,6 +518,7 @@ export function createAppSession(
 
   function openBus() {
     flushBusMove()
+    flushSeesawMove()
     if (!state.bus || state.bus.settled) {
       startBus()
       return
@@ -431,6 +530,7 @@ export function createAppSession(
   function openPractice() {
     cancelSpeech()
     flushBusMove()
+    flushSeesawMove()
     if (state.settled) {
       state.view = 'complete'
       persistAll()
@@ -440,9 +540,26 @@ export function createAppSession(
     persistAll()
   }
 
+  function openSeesaw() {
+    flushBusMove()
+    flushSeesawMove()
+    if (!state.seesaw || state.seesaw.settled) {
+      startSeesaw()
+      return
+    }
+    cancelSpeech()
+    state.view = 'seesaw'
+    persistAll()
+  }
+
   function anotherBus() {
     if (state.view !== 'busComplete') return
     startBus()
+  }
+
+  function anotherSeesaw() {
+    if (state.view !== 'seesawComplete') return
+    startSeesaw()
   }
 
   function requestReset() {
@@ -462,17 +579,101 @@ export function createAppSession(
     }
     clearAcked(storage)
     clearBusTimer()
+    clearSeesawTimer()
     state.writable = true
     state.storageMessage = ''
     state.stats = { ...DEFAULT_SAVE }
     state.resetConfirming = false
     state.bus = null
+    state.seesaw = null
     cancelSpeech()
     startRound(DEFAULT_SAVE.mode)
   }
 
+  function withSeesaw(action: (play: SeesawPlay) => void) {
+    const play = state.seesaw
+    if (!play || state.view !== 'seesaw' || play.settled) return
+    action(play)
+  }
+
+  function seesawTapDigit(digit: string) {
+    withSeesaw((play) => {
+      if (tapSeesawDigit(play, digit)) persistAll()
+    })
+  }
+
+  function seesawTapDelete() {
+    withSeesaw((play) => {
+      if (tapSeesawDelete(play)) persistAll()
+    })
+  }
+
+  function seesawTapConfirm() {
+    withSeesaw((play) => {
+      const result = confirmSeesaw(play)
+      if (result === 'empty' || result === 'locked') return
+      if (reducedMotion()) {
+        if (result === 'correct') {
+          const next = arriveSeesawNext(play)
+          if (next === 'done') finishSeesaw()
+          else persistAll()
+        } else {
+          restoreSeesaw(play)
+          persistAll()
+        }
+        return
+      }
+      persistAll()
+      clearSeesawTimer()
+      if (result === 'correct') {
+        seesawTimer = delay(() => {
+          seesawTimer = 0
+          if (!state.seesaw?.moving) return
+          const next = arriveSeesawNext(state.seesaw)
+          if (next === 'done') finishSeesaw()
+          else persistAll()
+        }, SEESAW_LEVEL_MS)
+        return
+      }
+      seesawTimer = delay(() => {
+        seesawTimer = 0
+        if (!state.seesaw?.moving) return
+        restoreSeesaw(state.seesaw)
+        persistAll()
+      }, SEESAW_HOLD_MS)
+    })
+  }
+
+  function seesawHelp() {
+    withSeesaw((play) => {
+      if (!tapSeesawHelp(play)) return
+      persistAll()
+      speakChinese({
+        text: zhCount(seesawLeft(play.problems[play.index]!)),
+        synth: synthOf(),
+      })
+    })
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (isEditableTarget(event.target)) return
+    if (state.view === 'seesaw') {
+      if (event.key >= '0' && event.key <= '9') {
+        event.preventDefault()
+        seesawTapDigit(event.key)
+        return
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        seesawTapDelete()
+        return
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        seesawTapConfirm()
+      }
+      return
+    }
     if (state.view !== 'practice') return
     if (event.key >= '0' && event.key <= '9') {
       event.preventDefault()
@@ -595,6 +796,7 @@ export function createAppSession(
 
   function dispose() {
     clearBusTimer()
+    clearSeesawTimer()
     cancelSpeech()
   }
 
@@ -610,11 +812,18 @@ export function createAppSession(
     anotherRound,
     openBus,
     openPractice,
+    openSeesaw,
     anotherBus,
+    anotherSeesaw,
     requestReset,
     cancelReset,
     confirmReset,
     handleKeydown,
+    seesawTapDigit,
+    seesawTapDelete,
+    seesawTapConfirm,
+    seesawHelp,
+    flushSeesawMove,
     busTapWaiting,
     busTapSeat,
     busTapOff,

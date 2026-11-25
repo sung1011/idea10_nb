@@ -650,7 +650,7 @@ describe('自动存档恢复', () => {
     expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}').version).toBe(1)
     session.tapDigit('3')
     const saved = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
-    expect(saved.version).toBe(2)
+    expect(saved.version).toBe(3)
     expect(saved.play.practice.input).toBe('3')
     expect(saved.roundsCompleted).toBe(7)
     const again = createAppSession({ storage, rng: mulberry32(61) })
@@ -672,6 +672,7 @@ describe('自动存档恢复', () => {
     expect(disk.mode).toBe('add')
     expect(disk.play.practice.mode).toBe('add')
     expect(disk.play.practice.problems.every((item: { op: string }) => item.op === '+')).toBe(true)
+    expect(disk.play.seesaw.problems.every((item: { op: string }) => item.op === '+')).toBe(true)
     expect(disk.play.view).toBe('bus')
     const again = createAppSession({ storage, rng: mulberry32(63), reducedMotion: () => true })
     expect(again.state.mode).toBe('add')
@@ -681,7 +682,7 @@ describe('自动存档恢复', () => {
   })
 
   it('更高版本不覆盖；写失败不改统计', () => {
-    const raw = JSON.stringify({ ...DEFAULT_SAVE, version: 3, roundsCompleted: 9 })
+    const raw = JSON.stringify({ ...DEFAULT_SAVE, version: 4, roundsCompleted: 9 })
     const frozen = memoryStorage({ [STORAGE_KEY]: raw, otherApp: 'keep' })
     const blocked = createAppSession({ storage: frozen, rng: mulberry32(64) })
     blocked.tapDigit('1')
@@ -777,5 +778,212 @@ describe('自动存档恢复', () => {
     expect(restored.state.stats.busTripsCompleted).toBe(0)
   })
 })
+
+describe('跷跷板会话', () => {
+  function typeUnknown(session: ReturnType<typeof createAppSession>, value: number) {
+    for (const d of String(value)) session.seesawTapDigit(d)
+  }
+
+  it('从算术进入；坐车与跷跷板不直达；三玩法互留', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(80), reducedMotion: () => true })
+    session.tapDigit('3')
+    session.openSeesaw()
+    expect(session.state.view).toBe('seesaw')
+    expect(session.state.seesaw?.problems).toHaveLength(10)
+    const firstRight = session.state.seesaw!.right
+    typeUnknown(session, 1)
+    expect(session.state.seesaw?.right).toBe(firstRight)
+    session.openPractice()
+    expect(session.state.view).toBe('practice')
+    expect(session.state.input).toBe('3')
+    session.openBus()
+    expect(session.state.view).toBe('bus')
+    session.openPractice()
+    session.openSeesaw()
+    expect(session.state.view).toBe('seesaw')
+    expect(session.state.seesaw?.input).toBe('1')
+    const restored = createAppSession({ storage, rng: mulberry32(81), reducedMotion: () => true })
+    expect(restored.state.view).toBe('seesaw')
+    restored.openPractice()
+    expect(restored.state.input).toBe('3')
+    restored.openBus()
+    expect(restored.state.bus).toBeTruthy()
+  })
+
+  it('错答停错误倾角后还原；超过 10 不改盘；0 变化必须提交', () => {
+    const session = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(82),
+      reducedMotion: () => true,
+    })
+    session.openSeesaw()
+    const play = session.state.seesaw!
+    play.problems[0] = { a: 3, b: 4, op: '+', answer: 7 }
+    play.right = 3
+    typeUnknown(session, 2)
+    session.seesawTapConfirm()
+    expect(play.right).toBe(3)
+    expect(play.wrongOnce[0]).toBe(true)
+    expect(play.input).toBe('')
+    typeUnknown(session, 8)
+    session.seesawTapConfirm()
+    expect(play.right).toBe(3)
+    play.problems[0] = { a: 5, b: 0, op: '+', answer: 5 }
+    play.right = 5
+    session.seesawTapConfirm()
+    expect(play.index).toBe(0)
+    expect(play.settled).toBe(false)
+    typeUnknown(session, 0)
+    session.seesawTapConfirm()
+    expect(play.index).toBe(1)
+  })
+
+  it('完成十题统计只加一次；刷新完成页不加；再玩写 1/10', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(83), reducedMotion: () => true })
+    session.openSeesaw()
+    while (!session.state.seesaw?.settled) {
+      const play = session.state.seesaw!
+      const unknown = play.problems[play.index]!.b
+      for (const d of String(unknown)) session.seesawTapDigit(d)
+      session.seesawTapConfirm()
+    }
+    expect(session.state.view).toBe('seesawComplete')
+    expect(session.state.stats.seesawRoundsCompleted).toBe(1)
+    expect(session.state.stats.roundsCompleted).toBe(0)
+    const again = createAppSession({ storage, rng: mulberry32(84), reducedMotion: () => true })
+    expect(again.state.view).toBe('seesawComplete')
+    expect(again.state.stats.seesawRoundsCompleted).toBe(1)
+    const third = createAppSession({ storage, rng: mulberry32(85), reducedMotion: () => true })
+    expect(third.state.stats.seesawRoundsCompleted).toBe(1)
+    third.anotherSeesaw()
+    expect(third.state.view).toBe('seesaw')
+    expect(third.state.seesaw?.index).toBe(0)
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}').play.view).toBe('seesaw')
+  })
+
+  it('正确动画中刷新已到下一题；错误动画中刷新回原题', () => {
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(86),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openSeesaw()
+    const play = session.state.seesaw!
+    play.problems = [
+      { a: 3, b: 4, op: '+', answer: 7 },
+      { a: 1, b: 2, op: '+', answer: 3 },
+      { a: 2, b: 2, op: '+', answer: 4 },
+      { a: 4, b: 1, op: '+', answer: 5 },
+      { a: 0, b: 3, op: '+', answer: 3 },
+      { a: 5, b: 1, op: '+', answer: 6 },
+      { a: 6, b: 2, op: '+', answer: 8 },
+      { a: 2, b: 5, op: '+', answer: 7 },
+      { a: 1, b: 1, op: '+', answer: 2 },
+      { a: 3, b: 3, op: '+', answer: 6 },
+    ]
+    play.right = 3
+    for (const d of '4') session.seesawTapDigit(d)
+    session.seesawTapConfirm()
+    expect(play.motion).toBe('level')
+    expect(play.index).toBe(0)
+    const afterOk = createAppSession({ storage, rng: mulberry32(87), reducedMotion: () => true })
+    expect(afterOk.state.seesaw?.index).toBe(1)
+    expect(afterOk.state.seesaw?.motion).toBe('idle')
+
+    const timer2 = mockDelay()
+    const wrong = createAppSession({
+      storage,
+      rng: mulberry32(88),
+      reducedMotion: () => false,
+      delay: timer2.delay,
+      cancelDelay: timer2.cancel,
+    })
+    const w = wrong.state.seesaw!
+    w.right = 1
+    wrong.seesawTapDigit('9')
+    wrong.seesawTapConfirm()
+    expect(w.motion).toBe('hold')
+    const afterBad = createAppSession({ storage, rng: mulberry32(89), reducedMotion: () => true })
+    expect(afterBad.state.seesaw?.index).toBe(1)
+    expect(afterBad.state.seesaw?.right).toBe(1)
+    expect(afterBad.state.seesaw?.motion).toBe('idle')
+  })
+
+  it('设置改模式未退出刷新：新开算术和跷跷板，坐车留下', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(90), reducedMotion: () => true })
+    session.openBus()
+    const startCount = session.state.bus?.trip.startCount
+    session.openSeesaw()
+    session.openSettings()
+    session.setMode('add')
+    const disk = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(disk.mode).toBe('add')
+    expect(disk.play.practice.problems.every((item: { op: string }) => item.op === '+')).toBe(true)
+    expect(disk.play.seesaw.problems.every((item: { op: string }) => item.op === '+')).toBe(true)
+    expect(disk.play.view).toBe('seesaw')
+    expect(disk.play.bus.trip.startCount).toBe(startCount)
+    const again = createAppSession({ storage, rng: mulberry32(91), reducedMotion: () => true })
+    expect(again.state.view).toBe('seesaw')
+    expect(again.state.seesaw?.problems.every((item) => item.op === '+')).toBe(true)
+    expect(again.state.bus?.trip.startCount).toBe(startCount)
+  })
+
+  it('未完成跷跷板算更新进度；完成页不算', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(93), reducedMotion: () => true })
+    session.openSeesaw()
+    expect(hasBusyProgress(session.state)).toBe(false)
+    session.seesawTapDigit('1')
+    expect(hasBusyProgress(session.state)).toBe(true)
+    session.openSettings()
+    expect(hasBusyProgress(session.state)).toBe(true)
+    session.closeSettings()
+    while (!session.state.seesaw?.settled) {
+      const play = session.state.seesaw!
+      for (const d of String(play.problems[play.index]!.b)) session.seesawTapDigit(d)
+      session.seesawTapConfirm()
+    }
+    expect(session.state.view).toBe('seesawComplete')
+    expect(hasBusyProgress(session.state)).toBe(false)
+  })
+
+  it('v2 存档升 v3 保留算术坐车，跷跷板从空开始', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(94), reducedMotion: () => true })
+    session.tapDigit('4')
+    session.openBus()
+    const index = session.state.bus!.stationIndex
+    const raw = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as Record<string, unknown> & {
+      play: Record<string, unknown>
+    }
+    raw.version = 2
+    delete raw.seesawRoundsCompleted
+    delete raw.seesawFirstTryCorrect
+    delete raw.seesawHintCount
+    delete raw.play.seesaw
+    storage.setItem(STORAGE_KEY, JSON.stringify(raw))
+    const again = createAppSession({ storage, rng: mulberry32(95), reducedMotion: () => true })
+    expect(again.state.view).toBe('bus')
+    expect(again.state.bus?.stationIndex).toBe(index)
+    expect(again.state.seesaw).toBeNull()
+    expect(again.state.stats.seesawRoundsCompleted).toBe(0)
+    again.openPractice()
+    expect(again.state.input).toBe('4')
+    again.openSeesaw()
+    expect(again.state.view).toBe('seesaw')
+    const saved = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(saved.version).toBe(3)
+    expect(saved.play.practice.input).toBe('4')
+    expect(saved.play.bus.stationIndex).toBe(index)
+  })
+})
+
 
 

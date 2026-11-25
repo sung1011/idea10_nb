@@ -2,7 +2,7 @@ import type { Mode } from '../logic/makeProblem'
 import { parsePlay, type PlaySnapshot } from './playSnapshot'
 
 export const STORAGE_KEY = 'idea10Nb.v1'
-export const STORAGE_VERSION = 2
+export const STORAGE_VERSION = 3
 
 export type SaveData = {
   version: typeof STORAGE_VERSION
@@ -15,6 +15,9 @@ export type SaveData = {
   busSoloCompleted: number
   busAdjustCount: number
   busHintCount: number
+  seesawRoundsCompleted: number
+  seesawFirstTryCorrect: number
+  seesawHintCount: number
   play: PlaySnapshot | null
 }
 
@@ -29,6 +32,9 @@ export const DEFAULT_SAVE: SaveData = {
   busSoloCompleted: 0,
   busAdjustCount: 0,
   busHintCount: 0,
+  seesawRoundsCompleted: 0,
+  seesawFirstTryCorrect: 0,
+  seesawHintCount: 0,
   play: null,
 }
 
@@ -69,11 +75,17 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
   const busSoloCompleted = rec.busSoloCompleted == null ? 0 : nonNegInt(rec.busSoloCompleted)
   const busAdjustCount = rec.busAdjustCount == null ? 0 : nonNegInt(rec.busAdjustCount)
   const busHintCount = rec.busHintCount == null ? 0 : nonNegInt(rec.busHintCount)
+  const seesawRoundsCompleted = rec.seesawRoundsCompleted == null ? 0 : nonNegInt(rec.seesawRoundsCompleted)
+  const seesawFirstTryCorrect = rec.seesawFirstTryCorrect == null ? 0 : nonNegInt(rec.seesawFirstTryCorrect)
+  const seesawHintCount = rec.seesawHintCount == null ? 0 : nonNegInt(rec.seesawHintCount)
   if (
     busTripsCompleted == null ||
     busSoloCompleted == null ||
     busAdjustCount == null ||
-    busHintCount == null
+    busHintCount == null ||
+    seesawRoundsCompleted == null ||
+    seesawFirstTryCorrect == null ||
+    seesawHintCount == null
   ) {
     return null
   }
@@ -87,13 +99,16 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
     busSoloCompleted,
     busAdjustCount,
     busHintCount,
+    seesawRoundsCompleted,
+    seesawFirstTryCorrect,
+    seesawHintCount,
   }
 }
 
 export function parseSave(raw: unknown): SaveData | null {
   if (!raw || typeof raw !== 'object') return null
   const rec = raw as Record<string, unknown>
-  if (rec.version !== 1 && rec.version !== 2) return null
+  if (rec.version !== 1 && rec.version !== 2 && rec.version !== 3) return null
   if (typeof rec.version === 'number' && rec.version > STORAGE_VERSION) return null
   const stats = parseStats(rec)
   if (!stats) return null

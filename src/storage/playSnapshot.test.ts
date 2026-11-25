@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { arriveNext, createBusPlay, depart, onboardCount, tapSeat, tapWaiting } from '../logic/busMove'
 import { makeBusTrip } from '../logic/busRoute'
 import { makeRound, mulberry32 } from '../logic/makeProblem'
+import { createSeesawPlay } from '../logic/seesawMove'
 import { busForDisk, emptyPractice, livePractice, parsePlay } from './playSnapshot'
 
 function fillToTarget(play: ReturnType<typeof createBusPlay>) {
@@ -95,5 +96,33 @@ describe('parsePlay', () => {
     expect(parsed?.bus?.hintThisTrip).toBe(1)
     expect(parsed?.bus?.trip.startCount).toBe(bus.trip.startCount)
     expect(parsed?.bus?.seats).toEqual(bus.seats)
+    expect(parsed?.seesaw).toBeNull()
+  })
+
+  it('跷跷板 roundtrip；完成标记不一致时保另两局', () => {
+    const problems = makeRound('mix', 10, mulberry32(8))
+    const bus = createBusPlay(makeBusTrip(mulberry32(9)))
+    const seesaw = createSeesawPlay(problems)
+    seesaw.input = '2'
+    const snapshot = {
+      view: 'seesaw' as const,
+      practice: emptyPractice('mix', problems, '🌈'),
+      bus,
+      seesaw,
+    }
+    const parsed = parsePlay(JSON.parse(JSON.stringify(snapshot)), 'mix')
+    expect(parsed?.view).toBe('seesaw')
+    expect(parsed?.seesaw?.input).toBe('2')
+    expect(parsed?.bus?.trip.startCount).toBe(bus.trip.startCount)
+    const mismatched = JSON.parse(JSON.stringify(snapshot)) as {
+      view: string
+      seesaw: { settled: boolean }
+    }
+    mismatched.view = 'seesawComplete'
+    mismatched.seesaw.settled = false
+    const kept = parsePlay(mismatched, 'mix')
+    expect(kept?.view).toBe('seesaw')
+    expect(kept?.practice.problems).toHaveLength(10)
+    expect(kept?.bus).toBeTruthy()
   })
 })

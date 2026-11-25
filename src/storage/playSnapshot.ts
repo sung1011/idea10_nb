@@ -16,8 +16,10 @@ import {
   type StopKind,
 } from '../logic/busRoute'
 import { ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProblem'
+import { seesawForDisk, type SeesawPlay } from '../logic/seesawMove'
+import { seesawRight } from '../logic/seesawProblem'
 
-export type GameView = 'practice' | 'complete' | 'bus' | 'busComplete'
+export type GameView = 'practice' | 'complete' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
 
 export type PracticeSnapshot = {
   mode: Mode
@@ -38,6 +40,7 @@ export type PlaySnapshot = {
   view: GameView
   practice: PracticeSnapshot
   bus: BusPlay | null
+  seesaw: SeesawPlay | null
 }
 
 const ANIMAL_KINDS: AnimalKind[] = ['cat', 'rabbit', 'bear', 'bird', 'frog']
@@ -69,7 +72,14 @@ function isStopKind(value: unknown): value is StopKind {
 }
 
 function isGameView(value: unknown): value is GameView {
-  return value === 'practice' || value === 'complete' || value === 'bus' || value === 'busComplete'
+  return (
+    value === 'practice' ||
+    value === 'complete' ||
+    value === 'bus' ||
+    value === 'busComplete' ||
+    value === 'seesaw' ||
+    value === 'seesawComplete'
+  )
 }
 
 function intIn(value: unknown, min: number, max: number): number | null {
@@ -319,6 +329,63 @@ export function emptyPractice(mode: Mode, problems: Problem[], stickerEmoji = ST
   }
 }
 
+function parseSeesawMotion(value: unknown): SeesawPlay['motion'] {
+  if (value === 'idle' || value === 'apply' || value === 'hold' || value === 'restore' || value === 'level') {
+    return value
+  }
+  return 'idle'
+}
+
+function parseSeesaw(raw: unknown, mode: Mode): SeesawPlay | null {
+  if (raw == null) return null
+  if (!isRecord(raw)) return null
+  if (!Array.isArray(raw.problems) || raw.problems.length !== ROUND_SIZE) return null
+  const problems: Problem[] = []
+  const keys = new Set<string>()
+  for (const item of raw.problems) {
+    const problem = parseProblem(item, mode)
+    if (!problem) return null
+    const key = `${problem.a}${problem.op}${problem.b}`
+    if (keys.has(key)) return null
+    keys.add(key)
+    problems.push(problem)
+  }
+  const settled = raw.settled === true
+  const index = intIn(raw.index, 0, ROUND_SIZE - 1)
+  if (index == null) return null
+  if (typeof raw.input !== 'string' || raw.input.length > 2 || !/^\d*$/.test(raw.input)) return null
+  const wrongOnce = bools(raw.wrongOnce, ROUND_SIZE)
+  const hintOnce = bools(raw.hintOnce, ROUND_SIZE)
+  if (!wrongOnce || !hintOnce) return null
+  const firstTryThisRound = intIn(raw.firstTryThisRound, 0, ROUND_SIZE)
+  const hintThisRound = intIn(raw.hintThisRound, 0, ROUND_SIZE)
+  if (firstTryThisRound == null || hintThisRound == null) return null
+  const right = intIn(raw.right, 0, 10)
+  if (right == null) return null
+  if (raw.accounted !== true && raw.accounted !== false) return null
+  if (raw.locked !== true && raw.locked !== false) return null
+  if (raw.outcome !== '' && raw.outcome !== 'correct' && raw.outcome !== 'wrong') return null
+  const play: SeesawPlay = {
+    problems,
+    index,
+    input: raw.input,
+    right,
+    motion: parseSeesawMotion(raw.motion),
+    outcome: raw.outcome,
+    moving: raw.moving === true,
+    settled,
+    accounted: raw.accounted,
+    locked: raw.locked,
+    wrongOnce,
+    hintOnce,
+    firstTryThisRound,
+    hintThisRound,
+  }
+  const origin = seesawRight(problems[index]!)
+  if (!settled && play.motion === 'idle' && play.outcome === '' && play.right !== origin) return null
+  return seesawForDisk(play)
+}
+
 export function parsePlay(raw: unknown, mode: Mode): PlaySnapshot | null {
   if (raw == null) return null
   if (!isRecord(raw)) return null
@@ -330,10 +397,20 @@ export function parsePlay(raw: unknown, mode: Mode): PlaySnapshot | null {
     bus = parseBus(raw.bus)
     if (!bus) return null
   }
-  if ((raw.view === 'bus' || raw.view === 'busComplete') && !bus) return null
-  if (raw.view === 'complete' && !practice.settled) return null
-  if (raw.view === 'busComplete' && bus && !bus.settled) return null
-  return { view: raw.view, practice, bus }
+  let seesaw: SeesawPlay | null = null
+  if (raw.seesaw != null) {
+    seesaw = parseSeesaw(raw.seesaw, mode)
+  }
+  let view = raw.view
+  if ((view === 'seesaw' || view === 'seesawComplete') && !seesaw) {
+    view = practice.settled ? 'complete' : 'practice'
+  }
+  if ((view === 'bus' || view === 'busComplete') && !bus) return null
+  if (view === 'complete' && !practice.settled) return null
+  if (view === 'busComplete' && bus && !bus.settled) return null
+  if (view === 'seesawComplete' && seesaw && !seesaw.settled) view = 'seesaw'
+  if (view === 'seesaw' && seesaw?.settled) view = 'seesawComplete'
+  return { view, practice, bus, seesaw }
 }
 
 export function livePractice(state: {
@@ -372,7 +449,14 @@ export function gameViewFrom(
   settled: boolean,
 ): GameView {
   const source = view === 'settings' ? openedView ?? (settled ? 'complete' : 'practice') : view
-  if (source === 'practice' || source === 'complete' || source === 'bus' || source === 'busComplete') {
+  if (
+    source === 'practice' ||
+    source === 'complete' ||
+    source === 'bus' ||
+    source === 'busComplete' ||
+    source === 'seesaw' ||
+    source === 'seesawComplete'
+  ) {
     return source
   }
   return settled ? 'complete' : 'practice'

@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.3', version: '0.6.3', date: '2026-11-25', summary: '自动保存进度' },
+  { id: 'v0.6.4', version: '0.6.4', date: '2026-11-25', summary: '跷跷板' },
 ]
 
 function mountApp() {
@@ -200,6 +200,7 @@ describe('界面响应', () => {
     await nextTick()
     expect(el.textContent).toContain('坐车次数 0')
     expect(el.textContent).toContain('独立完成 0')
+    expect(el.textContent).toContain('跷跷板次数 0')
     vueApp.unmount()
     const again = mountApp()
     await nextTick()
@@ -242,6 +243,37 @@ describe('界面响应', () => {
     await nextTick()
     expect(el.textContent).toContain('当前这轮会重新开始')
     expect(replaced).toEqual([])
+    vueApp.unmount()
+  })
+
+  it('算术页有坐车和跷跷板入口；跷跷板选数不改盘面；子玩法只回算术', async () => {
+    const { el, vueApp } = mountApp()
+    await nextTick()
+    expect(el.querySelector('[data-go-bus]')).toBeTruthy()
+    expect(el.querySelector('[data-go-seesaw]')).toBeTruthy()
+    byAria(el, '跷跷板').click()
+    await nextTick()
+    expect(el.querySelector('[data-seesaw]')).toBeTruthy()
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
+    expect(el.querySelector('[data-go-bus]')).toBeFalsy()
+    expect(el.querySelector('[data-go-seesaw]')).toBeFalsy()
+    expect(el.querySelector('[data-go-math]')).toBeTruthy()
+    const right = el.querySelector('[data-pan="right"]')?.getAttribute('data-count')
+    const tilt = el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')
+    expect(right).toMatch(/^\d+$/)
+    expect(tilt).toMatch(/^-?\d+(\.\d+)?$/)
+    button(el, '1').click()
+    await nextTick()
+    expect(el.querySelector('.blank')?.textContent).toBe('1')
+    expect(el.querySelector('[data-pan="right"]')?.getAttribute('data-count')).toBe(right)
+    expect(el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')).toBe(tilt)
+    expect(el.querySelector('[data-help]')).toBeFalsy()
+    expect(el.querySelector('[data-hint]')).toBeFalsy()
+    byAria(el, '算术').click()
+    await nextTick()
+    expect(el.querySelector('.practice, .eq')).toBeTruthy()
+    expect(el.querySelector('[data-go-bus]')).toBeTruthy()
+    expect(el.querySelector('[data-go-seesaw]')).toBeTruthy()
     vueApp.unmount()
   })
 })

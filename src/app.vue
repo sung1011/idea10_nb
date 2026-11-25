@@ -9,6 +9,8 @@ import busView from './views/busView.vue'
 import completeView from './views/completeView.vue'
 import parentSettingsView from './views/parentSettingsView.vue'
 import practiceView from './views/practiceView.vue'
+import seesawCompleteView from './views/seesawCompleteView.vue'
+import seesawView from './views/seesawView.vue'
 
 const session = createAppSession()
 const state = reactive(session.state)
@@ -59,21 +61,24 @@ onUnmounted(() => {
     <header class="top">
       <p class="brand">一起算</p>
       <div v-if="state.view !== 'settings'" class="gear-wrap">
-        <button
-          v-if="state.view === 'practice' || state.view === 'complete'"
-          type="button"
-          class="switch"
-          aria-label="坐车"
-          data-go-bus
-          @click="session.openBus()"
-        >
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <rect x="4" y="14" width="28" height="14" rx="4" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.4" />
-            <circle cx="12" cy="30" r="4" fill="#3b2a1a" />
-            <circle cx="26" cy="30" r="4" fill="#3b2a1a" />
-            <rect x="8" y="17" width="8" height="6" rx="1" fill="#fff4e4" />
-          </svg>
-        </button>
+        <template v-if="state.view === 'practice' || state.view === 'complete'">
+          <button type="button" class="switch" aria-label="坐车" data-go-bus @click="session.openBus()">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <rect x="4" y="14" width="28" height="14" rx="4" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.4" />
+              <circle cx="12" cy="30" r="4" fill="#3b2a1a" />
+              <circle cx="26" cy="30" r="4" fill="#3b2a1a" />
+              <rect x="8" y="17" width="8" height="6" rx="1" fill="#fff4e4" />
+            </svg>
+          </button>
+          <button type="button" class="switch" aria-label="跷跷板" data-go-seesaw @click="session.openSeesaw()">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <rect x="6" y="18" width="28" height="5" rx="2" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.2" />
+              <polygon points="20,34 14,22 26,22" fill="#3b2a1a" />
+              <circle cx="10" cy="14" r="4" fill="#e76f51" stroke="#3b2a1a" stroke-width="2" />
+              <circle cx="30" cy="14" r="4" fill="#e76f51" stroke="#3b2a1a" stroke-width="2" />
+            </svg>
+          </button>
+        </template>
         <button
           v-else
           type="button"
@@ -141,6 +146,20 @@ onUnmounted(() => {
       @again="session.anotherBus"
     />
 
+    <seesaw-view
+      v-else-if="state.view === 'seesaw' && state.seesaw"
+      :play="state.seesaw"
+      @digit="session.seesawTapDigit"
+      @del="session.seesawTapDelete"
+      @confirm="session.seesawTapConfirm"
+      @help="session.seesawHelp"
+    />
+
+    <seesaw-complete-view
+      v-else-if="state.view === 'seesawComplete'"
+      @again="session.anotherSeesaw"
+    />
+
     <parent-settings-view
       v-else-if="state.view === 'settings'"
       :mode="state.mode"
@@ -151,6 +170,9 @@ onUnmounted(() => {
       :bus-solo-completed="state.stats.busSoloCompleted"
       :bus-adjust-count="state.stats.busAdjustCount"
       :bus-hint-count="state.stats.busHintCount"
+      :seesaw-rounds-completed="state.stats.seesawRoundsCompleted"
+      :seesaw-first-try-correct="state.stats.seesawFirstTryCorrect"
+      :seesaw-hint-count="state.stats.seesawHintCount"
       :storage-message="state.storageMessage"
       :reset-confirming="state.resetConfirming"
       :build-version="versions.buildVersion"
