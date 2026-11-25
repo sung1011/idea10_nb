@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.4', version: '0.6.4', date: '2026-11-25', summary: '跷跷板' },
+  { id: 'v0.6.5', version: '0.6.5', date: '2026-11-25', summary: '玩法下拉' },
 ]
 
 function mountApp() {
@@ -22,10 +22,16 @@ function button(el: HTMLElement, label: string) {
   return found
 }
 
-function byAria(el: HTMLElement, label: string) {
-  const found = el.querySelector(`[aria-label="${label}"]`) as HTMLButtonElement | null
-  if (!found) throw new Error(`missing aria ${label}`)
+function playSwitch(el: HTMLElement) {
+  const found = el.querySelector('[data-play-switch]') as HTMLSelectElement | null
+  if (!found) throw new Error('missing play switch')
   return found
+}
+
+function selectPlay(el: HTMLElement, kind: 'practice' | 'bus' | 'seesaw') {
+  const sel = playSwitch(el)
+  sel.value = kind
+  sel.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
 async function flush() {
@@ -178,7 +184,7 @@ describe('界面响应', () => {
     await nextTick()
     button(el, '3').click()
     await nextTick()
-    byAria(el, '坐车').click()
+    selectPlay(el, 'bus')
     await nextTick()
     expect(el.querySelector('[data-depart]')).toBeTruthy()
     expect(el.querySelectorAll('[data-seat]').length).toBe(10)
@@ -192,7 +198,7 @@ describe('界面响应', () => {
     expect(el.querySelectorAll('[data-lamp]').length).toBe(2)
     const child = el.querySelector('.bus')?.textContent ?? ''
     expect(child).not.toMatch(/发车|候车|少了|小帮手|喇叭|撤回|本站重来|家门口|花园|池塘|果园|野餐地/)
-    byAria(el, '算术').click()
+    selectPlay(el, 'practice')
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('3')
     expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
@@ -205,10 +211,10 @@ describe('界面响应', () => {
     const again = mountApp()
     await nextTick()
     expect(again.el.querySelector('.blank')?.textContent).toBe('3')
-    byAria(again.el, '坐车').click()
+    selectPlay(again.el, 'bus')
     await nextTick()
     expect(again.el.querySelector('[data-depart]')).toBeTruthy()
-    byAria(again.el, '算术').click()
+    selectPlay(again.el, 'practice')
     await nextTick()
     expect(again.el.querySelector('.blank')?.textContent).toBe('3')
     again.vueApp.unmount()
@@ -233,7 +239,7 @@ describe('界面响应', () => {
     }))
     const { el, vueApp } = mountApp()
     await flush()
-    byAria(el, '坐车').click()
+    selectPlay(el, 'bus')
     await nextTick()
     const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement | null
     const filled = el.querySelector('[data-animal]:not([data-animal=""])') as HTMLButtonElement | null
@@ -246,18 +252,21 @@ describe('界面响应', () => {
     vueApp.unmount()
   })
 
-  it('算术页有坐车和跷跷板入口；跷跷板选数不改盘面；子玩法只回算术', async () => {
+  it('顶栏玩法下拉可互切；旧图标入口消失；选数不改盘面', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
-    expect(el.querySelector('[data-go-bus]')).toBeTruthy()
-    expect(el.querySelector('[data-go-seesaw]')).toBeTruthy()
-    byAria(el, '跷跷板').click()
-    await nextTick()
-    expect(el.querySelector('[data-seesaw]')).toBeTruthy()
-    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
+    const home = playSwitch(el)
+    expect(home.value).toBe('practice')
+    expect([...home.options].map((item) => item.textContent?.trim())).toEqual(['算式', '坐车', '跷跷板'])
     expect(el.querySelector('[data-go-bus]')).toBeFalsy()
     expect(el.querySelector('[data-go-seesaw]')).toBeFalsy()
-    expect(el.querySelector('[data-go-math]')).toBeTruthy()
+    expect(el.querySelector('[data-go-math]')).toBeFalsy()
+    expect(el.textContent).not.toContain('一起算')
+    selectPlay(el, 'seesaw')
+    await nextTick()
+    expect(playSwitch(el).value).toBe('seesaw')
+    expect(el.querySelector('[data-seesaw]')).toBeTruthy()
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
     const right = el.querySelector('[data-pan="right"]')?.getAttribute('data-count')
     const tilt = el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')
     expect(right).toMatch(/^\d+$/)
@@ -267,13 +276,21 @@ describe('界面响应', () => {
     expect(el.querySelector('.blank')?.textContent).toBe('1')
     expect(el.querySelector('[data-pan="right"]')?.getAttribute('data-count')).toBe(right)
     expect(el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')).toBe(tilt)
-    expect(el.querySelector('[data-help]')).toBeFalsy()
-    expect(el.querySelector('[data-hint]')).toBeFalsy()
-    byAria(el, '算术').click()
+    selectPlay(el, 'bus')
     await nextTick()
+    expect(playSwitch(el).value).toBe('bus')
+    expect(el.querySelector('[data-depart]')).toBeTruthy()
+    selectPlay(el, 'seesaw')
+    await nextTick()
+    expect(el.querySelector('.blank')?.textContent).toBe('1')
+    selectPlay(el, 'practice')
+    await nextTick()
+    expect(playSwitch(el).value).toBe('practice')
     expect(el.querySelector('.practice, .eq')).toBeTruthy()
-    expect(el.querySelector('[data-go-bus]')).toBeTruthy()
-    expect(el.querySelector('[data-go-seesaw]')).toBeTruthy()
+    button(el, '设置').click()
+    await nextTick()
+    expect(el.querySelector('[data-play-switch]')).toBeFalsy()
+    expect(el.querySelector('.brand')?.textContent).toBe('设置')
     vueApp.unmount()
   })
 })
@@ -373,7 +390,7 @@ describe('坐车界面整局', () => {
   it('故意错一次、提示一次后走完十题，第五题不结束，统计只加一次', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
-    byAria(el, '坐车').click()
+    selectPlay(el, 'bus')
     await nextTick()
     const depart = el.querySelector('[data-depart]') as HTMLButtonElement
     depart.click()
@@ -438,7 +455,7 @@ describe('坐车动画与撤回', () => {
   it('点刚上车的动物能退回候车', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
-    byAria(el, '坐车').click()
+    selectPlay(el, 'bus')
     await nextTick()
     if (!el.querySelector('[data-kind="board"]')) {
       vueApp.unmount()
@@ -459,7 +476,7 @@ describe('坐车动画与撤回', () => {
   it('正常动画发车后会锁住并过站', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
-    byAria(el, '坐车').click()
+    selectPlay(el, 'bus')
     await nextTick()
     const firstTarget = el.querySelector('[data-target]')?.getAttribute('data-target')
     await playOneStop(el, false)

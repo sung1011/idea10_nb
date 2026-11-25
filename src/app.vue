@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import updatePopover from './components/updatePopover.vue'
 import { useAppVersions } from './composables/useAppVersions'
 import { useInstallPrompt } from './composables/useInstallPrompt'
+import playSwitch from './components/playSwitch.vue'
+import { playKindOf } from './logic/playKind'
 import { createAppSession, hasBusyProgress } from './session/appSession'
 import busCompleteView from './views/busCompleteView.vue'
 import busView from './views/busView.vue'
@@ -26,6 +28,7 @@ const {
   requestInstall,
 } = install
 const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
+const playKind = computed(() => playKindOf(state.view))
 const ticket = computed(() => state.bus?.trip.initialOnboard[0] ?? { kind: 'cat' as const, tint: 'gold' as const })
 const reducedMotion = computed(
   () =>
@@ -59,36 +62,13 @@ onUnmounted(() => {
 <template>
   <div class="shell">
     <header class="top">
-      <p class="brand">一起算</p>
+      <play-switch
+        v-if="playKind"
+        :value="playKind"
+        @change="session.switchPlay"
+      />
+      <p v-else class="brand">设置</p>
       <div v-if="state.view !== 'settings'" class="gear-wrap">
-        <template v-if="state.view === 'practice' || state.view === 'complete'">
-          <button type="button" class="switch" aria-label="坐车" data-go-bus @click="session.openBus()">
-            <svg viewBox="0 0 40 40" aria-hidden="true">
-              <rect x="4" y="14" width="28" height="14" rx="4" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.4" />
-              <circle cx="12" cy="30" r="4" fill="#3b2a1a" />
-              <circle cx="26" cy="30" r="4" fill="#3b2a1a" />
-              <rect x="8" y="17" width="8" height="6" rx="1" fill="#fff4e4" />
-            </svg>
-          </button>
-          <button type="button" class="switch" aria-label="跷跷板" data-go-seesaw @click="session.openSeesaw()">
-            <svg viewBox="0 0 40 40" aria-hidden="true">
-              <rect x="6" y="18" width="28" height="5" rx="2" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.2" />
-              <polygon points="20,34 14,22 26,22" fill="#3b2a1a" />
-              <circle cx="10" cy="14" r="4" fill="#e76f51" stroke="#3b2a1a" stroke-width="2" />
-              <circle cx="30" cy="14" r="4" fill="#e76f51" stroke="#3b2a1a" stroke-width="2" />
-            </svg>
-          </button>
-        </template>
-        <button
-          v-else
-          type="button"
-          class="switch"
-          aria-label="算术"
-          data-go-math
-          @click="session.openPractice()"
-        >
-          <span class="math">3+</span>
-        </button>
         <button
           type="button"
           class="gear"
@@ -225,8 +205,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.gear,
-.switch {
+.gear {
   min-height: 56px;
   min-width: 56px;
   padding: 6px 10px;
@@ -234,17 +213,5 @@ onUnmounted(() => {
   border-radius: 14px;
   background: var(--paper);
   font-weight: 800;
-}
-
-.switch svg {
-  width: 32px;
-  height: 32px;
-  display: block;
-}
-
-.math {
-  font-size: 1.35rem;
-  font-weight: 800;
-  line-height: 1;
 }
 </style>

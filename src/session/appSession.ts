@@ -19,6 +19,7 @@ import {
 } from '../logic/busMove'
 import { makeBusTrip } from '../logic/busRoute'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
+import { playKindOf, type PlayKind } from '../logic/playKind'
 import {
   arriveSeesawNext,
   confirmSeesaw,
@@ -517,9 +518,15 @@ export function createAppSession(
   }
 
   function openBus() {
+    cancelSpeech()
     flushBusMove()
     flushSeesawMove()
-    if (!state.bus || state.bus.settled) {
+    if (state.bus?.settled) {
+      state.view = 'busComplete'
+      persistAll()
+      return
+    }
+    if (!state.bus) {
       startBus()
       return
     }
@@ -541,15 +548,27 @@ export function createAppSession(
   }
 
   function openSeesaw() {
+    cancelSpeech()
     flushBusMove()
     flushSeesawMove()
-    if (!state.seesaw || state.seesaw.settled) {
+    if (state.seesaw?.settled) {
+      state.view = 'seesawComplete'
+      persistAll()
+      return
+    }
+    if (!state.seesaw) {
       startSeesaw()
       return
     }
-    cancelSpeech()
     state.view = 'seesaw'
     persistAll()
+  }
+
+  function switchPlay(kind: PlayKind) {
+    if (playKindOf(state.view) === kind) return
+    if (kind === 'practice') openPractice()
+    else if (kind === 'bus') openBus()
+    else openSeesaw()
   }
 
   function anotherBus() {
@@ -813,6 +832,7 @@ export function createAppSession(
     openBus,
     openPractice,
     openSeesaw,
+    switchPlay,
     anotherBus,
     anotherSeesaw,
     requestReset,
