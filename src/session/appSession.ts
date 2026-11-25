@@ -37,6 +37,16 @@ import {
   type SeesawPlay,
 } from '../logic/seesawMove'
 import { seesawTarget } from '../logic/seesawProblem'
+import {
+  DEFAULT_STICKER_ID,
+  LEGACY_STICKER_EMOJIS,
+  dealSticker,
+  emptyStickerBag,
+  isStickerId,
+  parseStickerBag,
+  type StickerBag,
+  type StickerId,
+} from '../logic/stickerPool'
 import { speakChinese, wrapBrowserSynth, zhCount, type SpeakSynth } from '../logic/speakTask'
 import {
   browserStorage,
@@ -57,8 +67,8 @@ import {
 
 export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
 
-export const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
-export { BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_CELEBRATE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
+export const STICKERS = LEGACY_STICKER_EMOJIS
+export { DEFAULT_STICKER_ID, BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_CELEBRATE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
 
 export type AppState = {
   view: View
@@ -81,6 +91,10 @@ export type AppState = {
   settingsOpenedMode: Mode | null
   settingsOpenedView: View | null
   stickerEmoji: string
+  stickerId: StickerId | ''
+  busSticker: StickerId | ''
+  seesawSticker: StickerId | ''
+  stickerBag: StickerBag
   bus: BusPlay | null
   seesaw: SeesawPlay | null
 }
@@ -152,6 +166,8 @@ export function createAppSession(
     seesawRoundsCompleted: data.seesawRoundsCompleted ?? 0,
     seesawFirstTryCorrect: data.seesawFirstTryCorrect ?? 0,
     seesawHintCount: data.seesawHintCount ?? 0,
+    stickerBag: data.stickerBag ?? [],
+    stickerBagNext: data.stickerBagNext ?? 0,
     play: data.play ?? null,
   })
 
@@ -176,6 +192,10 @@ export function createAppSession(
     settingsOpenedMode: null,
     settingsOpenedView: null,
     stickerEmoji: STICKERS[0],
+    stickerId: '',
+    busSticker: '',
+    seesawSticker: '',
+    stickerBag: parseStickerBag(loaded.data.stickerBag, loaded.data.stickerBagNext),
     bus: null,
     seesaw: null,
   })
@@ -226,6 +246,8 @@ export function createAppSession(
       practice,
       bus: state.bus ? busForDisk(state.bus) : null,
       seesaw,
+      ...(isStickerId(state.busSticker) ? { busSticker: state.busSticker } : {}),
+      ...(isStickerId(state.seesawSticker) ? { seesawSticker: state.seesawSticker } : {}),
     }
   }
 
@@ -241,6 +263,8 @@ export function createAppSession(
     const next: SaveData = {
       ...statsOnly(base),
       mode: state.mode,
+      stickerBag: state.stickerBag.order,
+      stickerBagNext: state.stickerBag.next,
       play: buildPlay(),
     }
     const result = writeSave(storage, next)
@@ -267,6 +291,7 @@ export function createAppSession(
     state.hintThisRound = practice.hintThisRound
     state.feedback = practice.feedback
     state.stickerEmoji = practice.stickerEmoji
+    state.stickerId = practice.stickerId ?? ''
   }
 
   function startRound(mode: Mode = state.mode) {
@@ -282,8 +307,15 @@ export function createAppSession(
     state.firstTryThisRound = 0
     state.hintThisRound = 0
     state.feedback = ''
+    state.stickerId = ''
     state.view = 'practice'
     persistAll()
+  }
+
+  function awardSticker(): StickerId {
+    const dealt = dealSticker(state.stickerBag, rng)
+    state.stickerBag = dealt.bag
+    return dealt.id
   }
 
   function finishRound() {
@@ -293,7 +325,7 @@ export function createAppSession(
     state.showHint = false
     state.input = ''
     state.feedback = ''
-    state.stickerEmoji = STICKERS[state.stats.stickerCount % STICKERS.length]
+    state.stickerId = awardSticker()
     state.view = 'complete'
     persistAll({
       ...state.stats,
@@ -309,6 +341,7 @@ export function createAppSession(
     const play = state.bus
     if (!play || !play.settled || play.accounted) return
     play.accounted = true
+    state.busSticker = awardSticker()
     state.view = 'busComplete'
     persistAll({
       ...state.stats,
@@ -341,6 +374,7 @@ export function createAppSession(
   function startBus() {
     clearBusTimer()
     state.bus = createBusPlay(makeBusTrip(rng))
+    state.busSticker = ''
     cancelSpeech()
     state.view = 'bus'
     persistAll()
@@ -350,6 +384,7 @@ export function createAppSession(
     const play = state.seesaw
     if (!play || !play.settled || play.accounted) return
     play.accounted = true
+    state.seesawSticker = awardSticker()
     state.view = 'seesawComplete'
     persistAll({
       ...state.stats,
@@ -379,6 +414,7 @@ export function createAppSession(
   function startSeesaw() {
     clearSeesawTimer()
     state.seesaw = createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+    state.seesawSticker = ''
     cancelSpeech()
     state.view = 'seesaw'
     persistAll()
@@ -388,6 +424,8 @@ export function createAppSession(
     applyPractice(loaded.data.play.practice)
     state.bus = loaded.data.play.bus
     state.seesaw = loaded.data.play.seesaw
+    state.busSticker = loaded.data.play.busSticker ?? ''
+    state.seesawSticker = loaded.data.play.seesawSticker ?? ''
     state.view = loaded.data.play.view
   } else {
     startRound(state.mode)
@@ -605,6 +643,11 @@ export function createAppSession(
     state.storageMessage = ''
     state.stats = { ...DEFAULT_SAVE }
     state.resetConfirming = false
+    state.stickerBag = emptyStickerBag()
+    state.stickerId = ''
+    state.busSticker = ''
+    state.seesawSticker = ''
+    state.stickerEmoji = STICKERS[0]
     state.bus = null
     state.seesaw = null
     cancelSpeech()

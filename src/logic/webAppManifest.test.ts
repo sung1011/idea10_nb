@@ -77,12 +77,12 @@ describe('主屏幕清单与图标', () => {
   })
 })
 
-describe('0.6.8 版本检测', () => {
-  it('旧构建 0.6.7 遇到远端 0.6.8 会提示；已是 0.6.8 不提示', () => {
+describe('0.6.9 版本检测', () => {
+  it('旧构建 0.6.8 遇到远端 0.6.9 会提示；已是 0.6.9 不提示', () => {
     const entries = parseVersions(JSON.parse(readFileSync(join(root, 'public/versions.json'), 'utf8')))
-    expect(entries[0]?.version).toBe('0.6.8')
+    expect(entries[0]?.version).toBe('0.6.9')
     const groups = groupVersions(entries)
-    expect(pendingGroups(groups, '0.6.7').map((item) => item.version)[0]).toBe('0.6.8')
-    expect(pendingGroups(groups, '0.6.8')).toEqual([])
+    expect(pendingGroups(groups, '0.6.8').map((item) => item.version)[0]).toBe('0.6.9')
+    expect(pendingGroups(groups, '0.6.9')).toEqual([])
   })
 })

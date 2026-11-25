@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type { AnimalKind, AnimalTint } from '../logic/busRoute'
-import ticketSticker from '../components/ticketSticker.vue'
+import stickerCard from '../components/stickerCard.vue'
 
 defineProps<{
-  kind: AnimalKind
-  tint: AnimalTint
+  stickerId: string
 }>()
 
 const emit = defineEmits<{
@@ -14,7 +12,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="complete">
-    <ticket-sticker :kind="kind" :tint="tint" />
+    <sticker-card :sticker-id="stickerId" />
     <button type="button" class="again" aria-label="再玩一局" data-again @click="emit('again')">
       <svg viewBox="0 0 72 72" aria-hidden="true">
         <circle cx="36" cy="36" r="30" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="4" />

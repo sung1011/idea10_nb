@@ -54,6 +54,8 @@ describe('parseSave', () => {
       seesawRoundsCompleted: 0,
       seesawFirstTryCorrect: 0,
       seesawHintCount: 0,
+      stickerBag: [],
+      stickerBagNext: 0,
       play: null,
     })
   })
@@ -73,6 +75,8 @@ describe('parseSave', () => {
       seesawRoundsCompleted: 0,
       seesawFirstTryCorrect: 0,
       seesawHintCount: 0,
+      stickerBag: [],
+      stickerBagNext: 0,
       play: null,
     })
   })
@@ -211,6 +215,27 @@ describe('load / write / reset', () => {
     if (result.ok === false) {
       expect(result.message).toContain('写入失败')
     }
+  })
+
+  it('贴纸袋损坏只温和恢复，不丢统计和对局', () => {
+    const problems = makeRound('mix', 10, mulberry32(13))
+    const parsed = parseSave({
+      ...DEFAULT_SAVE,
+      roundsCompleted: 3,
+      stickerBag: ['star', 'star'],
+      stickerBagNext: 99,
+      play: {
+        view: 'practice',
+        practice: emptyPractice('mix', problems, '🌈'),
+        bus: null,
+        seesaw: null,
+      },
+    })
+    expect(parsed?.roundsCompleted).toBe(3)
+    expect(parsed?.stickerBag).toEqual([])
+    expect(parsed?.stickerBagNext).toBe(0)
+    expect(parsed?.play?.practice.stickerEmoji).toBe('🌈')
+    expect(parsed?.play?.practice.problems).toHaveLength(10)
   })
 
   it('重置只删本应用键', () => {

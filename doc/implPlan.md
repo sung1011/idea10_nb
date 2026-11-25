@@ -5,8 +5,9 @@
 ## 结构
 
 - `src/logic/makeProblem.ts` 出题：加法 `a+b≤10`，减法 `a≥b`，一轮 10 题不重复，混合必含加减，含 0 题（操作数或答案为 0）每轮最多 1 道
-- `src/storage/appStorage.ts` 键 `idea10Nb.v1`，内部 version 3：统计+对局同一 JSON；读 v1/v2 升到 3 并保留算术坐车；损坏或更高版本不覆盖；坏跷跷板只丢跷跷板保另两局
-- `src/storage/playSnapshot.ts` 校验并规范化可恢复对局（含 `seesaw`）
+- `src/storage/appStorage.ts` 键 `idea10Nb.v1`，内部 version 3：统计+对局同一 JSON；读 v1/v2 升到 3 并保留算术坐车；损坏或更高版本不覆盖；坏跷跷板只丢跷跷板保另两局；贴纸袋 `stickerBag`/`stickerBagNext` 为可选字段，缺或损坏当空袋，不升 version、不丢三局
+- `src/storage/playSnapshot.ts` 校验并规范化可恢复对局（含 `seesaw`）；算术 `stickerId`、坐车/跷跷板 `busSticker`/`seesawSticker` 可选；旧算术 emoji 保留；非法贴纸 ID 忽略
+- `src/logic/stickerPool.ts`：25 个 ID 洗牌袋，发完才重洗；`public/stickers/sticker-*.svg` 独立资源，经 `base` 引用，不内嵌、不进 zip
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
 - `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板状态机；`switchPlay` 三玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确 `level`/`cheer` 快照已到下一题 idle，错误 `hold` 快照为原题 idle；切走会 flush 动画收尾；`prefers-reduced-motion` 跳过回平等待但仍显示静态对勾/箭头并停留 1000/800ms
 - `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上玩法下拉「算式 / 坐车 / 跷跷板」；设置页无下拉
@@ -15,8 +16,8 @@
 - 坐车、跷跷板进度与算术共用 `progressLabel.vue`，文案「第 x / 10 题」；不再用地标路线条
 - 390 窄屏车头在车顶右侧（挡风玻璃），车灯在保险杠，轮子压在车身下沿，不占第五列座位、不靠裁切藏车头
 - `src/views/` 算术、完成、设置、坐车、跷跷板（儿童主流程少字，靠盘面数量和倾角）；设置内页签「题目」「更新」
-- `src/components/` 键盘、积木、进度、贴纸、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、玩法下拉；答对/答错反馈是梁上 CSS/SVG 对勾、星光、重试箭头与轻晃，无新位图，`pointer-events: none`
-- 动物 / 巴士 / 路线 / 车票 / 跷跷板用 Vue+SVG/CSS，与游戏页同一组件；完成页再玩为图形按钮加水平梁 SVG，无新位图
+- `src/components/` 键盘、积木、进度、贴纸卡、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、玩法下拉；三完成页共用 `stickerCard` 显示 25 款 SVG（旧算术完成页可仍显示当时的 emoji）；答对/答错反馈是梁上 CSS/SVG 对勾、星光、重试箭头与轻晃，无新位图，`pointer-events: none`
+- 动物 / 巴士 / 路线 / 车票 / 跷跷板用 Vue+SVG/CSS，与游戏页同一组件；完成页再玩为文字或图形按钮，奖励图为独立 SVG 贴纸，无贴纸 PNG
 - `src/composables/useInstallPrompt.ts` 缓存 `beforeinstallprompt`，不注册 Service Worker
 - `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`
 - `yiqisuan-assets/approved-app-icon.jpg` 用户确认的主图标原图；`scripts/makeIcons.sh` 只做高质量缩放转 PNG
@@ -27,6 +28,7 @@
 - 首次答对：该题第一次确定就对（可用提示）
 - 使用提示：该题第一次展开积木
 - 三项都在完成时一次性写入；未完成算术/坐车/跷跷板每次有效操作后自动写入，刷新继续；完成页 `settled`/`accounted` 防重复计次
+- 贴纸只在 `finishRound` / `finishBus` / `finishSeesaw` 从共用袋抽一次并写入；刷新和玩法切回读已存 ID，不重抽；旧坐车/跷跷板完成档缺字段展示默认星星，不消耗袋、不加次数；hydrate 不为补奖额外写盘
 - 设置页不入库：刷新回到进入设置前的玩法；设置中已改模式则磁盘上新开算术和跷跷板并保留坐车（现有 pendingMode）
 - 初始化未 hydrate 前不写盘，避免空白快照覆盖有效进度；写失败沿用「写入失败，未保存。」
 - 坐车四项（坐车次数 / 独立完成 / 调整次数 / 坐车提示）仅 10 题完成时写入；旧 v1 缺字段当 0

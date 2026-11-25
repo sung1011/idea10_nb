@@ -1286,5 +1286,196 @@ describe('跷跷板会话', () => {
   })
 })
 
+describe('贴纸奖励', () => {
+  function instant() {
+    return instantDelay()
+  }
+
+  function makeSession(storage = memoryStorage(), seed = 201) {
+    const delay = instant()
+    return createAppSession({
+      storage,
+      rng: mulberry32(seed),
+      reducedMotion: () => true,
+      delay: delay.delay,
+      cancelDelay: delay.cancelDelay,
+    })
+  }
+
+  function awardOf(session: ReturnType<typeof createAppSession>) {
+    if (session.state.view === 'complete') return session.state.stickerId
+    if (session.state.view === 'busComplete') return session.state.busSticker
+    if (session.state.view === 'seesawComplete') return session.state.seesawSticker
+    throw new Error(session.state.view)
+  }
+
+  function finishPlay(session: ReturnType<typeof createAppSession>, kind: 'practice' | 'bus' | 'seesaw') {
+    if (kind === 'practice') {
+      session.switchPlay('practice')
+      if (session.state.view === 'complete') session.anotherRound()
+      finishRound(session)
+      return
+    }
+    if (kind === 'bus') {
+      session.switchPlay('bus')
+      if (session.state.view === 'busComplete') session.anotherBus()
+      while (session.state.view === 'bus') passCurrentStop(session)
+      return
+    }
+    session.switchPlay('seesaw')
+    if (session.state.view === 'seesawComplete') session.anotherSeesaw()
+    while (session.state.view === 'seesaw') {
+      const play = session.state.seesaw!
+      const problem = play.problems[play.index]
+      if (!problem) throw new Error('no seesaw problem')
+      for (const digit of String(problem.b)) session.seesawTapDigit(digit)
+      session.seesawTapConfirm()
+    }
+  }
+
+  it('三玩法合计连续 25 次结算 25 个 ID 不重复，第 26 次开新轮', () => {
+    const session = makeSession()
+    const kinds = ['practice', 'bus', 'seesaw'] as const
+    const ids: string[] = []
+    for (let i = 0; i < 25; i += 1) {
+      finishPlay(session, kinds[i % 3]!)
+      ids.push(awardOf(session))
+    }
+    expect(ids).toHaveLength(25)
+    expect(new Set(ids).size).toBe(25)
+    expect(session.state.stickerBag.next).toBe(25)
+    finishPlay(session, 'practice')
+    expect(session.state.stickerBag.next).toBe(1)
+    expect(ids).toContain(awardOf(session))
+    expect(session.state.stats.roundsCompleted).toBe(10)
+    expect(session.state.stats.busTripsCompleted).toBe(8)
+    expect(session.state.stats.seesawRoundsCompleted).toBe(8)
+  })
+
+  it('跨刷新续抽同一袋；完成页互切不消耗', () => {
+    const storage = memoryStorage()
+    const first = makeSession(storage, 202)
+    finishPlay(first, 'practice')
+    const one = first.state.stickerId
+    finishPlay(first, 'bus')
+    const two = first.state.busSticker
+    expect(one).not.toBe(two)
+    expect(first.state.stickerBag.next).toBe(2)
+    first.switchPlay('practice')
+    expect(first.state.view).toBe('complete')
+    expect(first.state.stickerId).toBe(one)
+    first.switchPlay('bus')
+    expect(first.state.view).toBe('busComplete')
+    expect(first.state.busSticker).toBe(two)
+    expect(first.state.stickerBag.next).toBe(2)
+    const again = makeSession(storage, 203)
+    expect(again.state.stickerBag.next).toBe(2)
+    expect(again.state.stickerBag.order).toEqual(first.state.stickerBag.order)
+    finishPlay(again, 'seesaw')
+    expect(again.state.seesawSticker).toBe(first.state.stickerBag.order[2])
+    expect(again.state.stickerBag.next).toBe(3)
+    expect(again.state.stats.roundsCompleted).toBe(1)
+    expect(again.state.stats.busTripsCompleted).toBe(1)
+    expect(again.state.stats.seesawRoundsCompleted).toBe(1)
+  })
+
+  it('有提示或错答仍发一枚，重复结算不加次数不换图', () => {
+    const session = makeSession()
+    session.toggleHint()
+    session.tapDigit('9')
+    session.tapConfirm()
+    finishRound(session)
+    const id = session.state.stickerId
+    expect(id).toBeTruthy()
+    expect(session.state.stats.stickerCount).toBe(1)
+    session.tapConfirm()
+    session.anotherRound()
+    expect(session.state.view).toBe('practice')
+    expect(session.state.stats.stickerCount).toBe(1)
+  })
+
+  it('末题庆祝中刷新只发一次', () => {
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(204),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openSeesaw()
+    const play = session.state.seesaw!
+    play.index = 9
+    const problem = play.problems[9]!
+    play.right = problem.a
+    for (const digit of String(problem.b)) session.seesawTapDigit(digit)
+    session.seesawTapConfirm()
+    expect(play.motion).toBe('level')
+    expect(session.state.stats.seesawRoundsCompleted).toBe(0)
+    const restored = createAppSession({
+      storage,
+      rng: mulberry32(205),
+      reducedMotion: () => true,
+    })
+    expect(restored.state.view).toBe('seesawComplete')
+    expect(restored.state.stats.seesawRoundsCompleted).toBe(1)
+    expect(restored.state.seesawSticker).toBeTruthy()
+    expect(restored.state.stickerBag.next).toBe(1)
+    const third = createAppSession({ storage, rng: mulberry32(206), reducedMotion: () => true })
+    expect(third.state.stats.seesawRoundsCompleted).toBe(1)
+    expect(third.state.seesawSticker).toBe(restored.state.seesawSticker)
+    expect(third.state.stickerBag.next).toBe(1)
+  })
+
+  it('0.6.8 旧完成档保留 emoji，缺贴纸的坐车完成页不消耗新袋', () => {
+    const storage = memoryStorage()
+    const seed = makeSession(storage, 207)
+    seed.switchPlay('seesaw')
+    seed.seesawTapDigit('1')
+    seed.switchPlay('bus')
+    const disk = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as {
+      play: {
+        view: string
+        practice: { settled: boolean; stickerEmoji: string; input: string; index: number }
+        bus: { settled: boolean; accounted: boolean }
+        seesaw: { index: number; input: string; right: number; problems: { a: number }[] }
+      }
+      roundsCompleted: number
+      busTripsCompleted: number
+    }
+    disk.play.view = 'complete'
+    disk.play.practice.settled = true
+    disk.play.practice.stickerEmoji = '🌸'
+    disk.play.practice.input = ''
+    disk.play.practice.index = 9
+    disk.play.bus.settled = true
+    disk.play.bus.accounted = true
+    disk.play.seesaw.index = 2
+    disk.play.seesaw.input = '1'
+    disk.play.seesaw.right = disk.play.seesaw.problems[2]!.a
+    disk.roundsCompleted = 4
+    disk.busTripsCompleted = 2
+    delete (disk as { stickerBag?: unknown }).stickerBag
+    storage.setItem(STORAGE_KEY, JSON.stringify(disk))
+    const loaded = createAppSession({ storage, rng: mulberry32(208), reducedMotion: () => true })
+    expect(loaded.state.view).toBe('complete')
+    expect(loaded.state.stickerId).toBe('')
+    expect(loaded.state.stickerEmoji).toBe('🌸')
+    expect(loaded.state.busSticker).toBe('')
+    expect(loaded.state.seesaw?.index).toBe(2)
+    expect(loaded.state.seesaw?.input).toBe('1')
+    expect(loaded.state.stickerBag.next).toBe(0)
+    expect(loaded.state.stickerBag.order).toEqual([])
+    expect(loaded.state.stats.roundsCompleted).toBe(4)
+    expect(loaded.state.stats.busTripsCompleted).toBe(2)
+    loaded.switchPlay('bus')
+    expect(loaded.state.view).toBe('busComplete')
+    expect(loaded.state.busSticker).toBe('')
+    expect(loaded.state.stickerBag.next).toBe(0)
+    expect(loaded.state.stats.busTripsCompleted).toBe(2)
+  })
+})
+
 
 

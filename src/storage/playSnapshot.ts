@@ -16,6 +16,7 @@ import {
   type StopKind,
 } from '../logic/busRoute'
 import { ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProblem'
+import { isLegacyStickerEmoji, isStickerId, type StickerId } from '../logic/stickerPool'
 import { seesawForDisk, type SeesawPlay } from '../logic/seesawMove'
 import { seesawRight } from '../logic/seesawProblem'
 
@@ -36,6 +37,7 @@ export type PracticeSnapshot = {
   hintThisRound: number
   feedback: '' | 'wrong'
   stickerEmoji: string
+  stickerId?: StickerId
 }
 
 export type PlaySnapshot = {
@@ -43,11 +45,13 @@ export type PlaySnapshot = {
   practice: PracticeSnapshot
   bus: BusPlay | null
   seesaw: SeesawPlay | null
+  busSticker?: StickerId
+  seesawSticker?: StickerId
 }
 
 const ANIMAL_KINDS: AnimalKind[] = ['cat', 'rabbit', 'bear', 'bird', 'frog']
 const ANIMAL_TINTS: AnimalTint[] = ['teal', 'coral', 'gold', 'cream']
-const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉']
+const STICKERS = ['🌟', '🌸', '🌈', '🍀', '🎈', '🐠', '⭐', '🍉'] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
@@ -169,9 +173,8 @@ function parsePractice(raw: unknown, mode: Mode): PracticeSnapshot | null {
   const hintThisRound = intIn(raw.hintThisRound, 0, ROUND_SIZE)
   if (firstTryThisRound == null || hintThisRound == null) return null
   if (raw.feedback !== '' && raw.feedback !== 'wrong') return null
-  const stickerEmoji = STICKERS.includes(raw.stickerEmoji as (typeof STICKERS)[number])
-    ? (raw.stickerEmoji as string)
-    : STICKERS[0]
+  const stickerEmoji = isLegacyStickerEmoji(raw.stickerEmoji) ? raw.stickerEmoji : STICKERS[0]
+  const stickerId = isStickerId(raw.stickerId) ? raw.stickerId : undefined
   return {
     mode,
     problems,
@@ -185,6 +188,7 @@ function parsePractice(raw: unknown, mode: Mode): PracticeSnapshot | null {
     hintThisRound,
     feedback: raw.feedback,
     stickerEmoji,
+    ...(stickerId ? { stickerId } : {}),
   }
 }
 
@@ -314,7 +318,7 @@ export function busForDisk(play: BusPlay): BusPlay {
   return copy
 }
 
-export function emptyPractice(mode: Mode, problems: Problem[], stickerEmoji = STICKERS[0]): PracticeSnapshot {
+export function emptyPractice(mode: Mode, problems: Problem[], stickerEmoji: string = STICKERS[0]): PracticeSnapshot {
   return {
     mode,
     problems,
@@ -419,7 +423,16 @@ export function parsePlay(raw: unknown, mode: Mode): PlaySnapshot | null {
   if (view === 'busComplete' && bus && !bus.settled) return null
   if (view === 'seesawComplete' && seesaw && !seesaw.settled) view = 'seesaw'
   if (view === 'seesaw' && seesaw?.settled) view = 'seesawComplete'
-  return { view, practice, bus, seesaw }
+  const busSticker = isStickerId(raw.busSticker) ? raw.busSticker : undefined
+  const seesawSticker = isStickerId(raw.seesawSticker) ? raw.seesawSticker : undefined
+  return {
+    view,
+    practice,
+    bus,
+    seesaw,
+    ...(busSticker ? { busSticker } : {}),
+    ...(seesawSticker ? { seesawSticker } : {}),
+  }
 }
 
 export function livePractice(state: {
@@ -435,7 +448,9 @@ export function livePractice(state: {
   hintThisRound: number
   feedback: '' | 'wrong'
   stickerEmoji: string
+  stickerId?: StickerId | ''
 }): PracticeSnapshot {
+  const stickerId = isStickerId(state.stickerId) ? state.stickerId : undefined
   return {
     mode: state.mode,
     problems: state.problems.map((item) => ({ ...item })),
@@ -449,6 +464,7 @@ export function livePractice(state: {
     hintThisRound: state.hintThisRound,
     feedback: state.feedback,
     stickerEmoji: state.stickerEmoji,
+    ...(stickerId ? { stickerId } : {}),
   }
 }
 

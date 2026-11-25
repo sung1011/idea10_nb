@@ -158,4 +158,32 @@ describe('parsePlay', () => {
     broken.seesaw.right = 8
     expect(parsePlay(broken, 'mix')?.seesaw).toBeNull()
   })
+
+  it('旧算术 emoji 保留；坏贴纸字段不丢三局', () => {
+    const problems = makeRound('mix', 10, mulberry32(13))
+    const bus = createBusPlay(makeBusTrip(mulberry32(14)))
+    bus.settled = true
+    bus.accounted = true
+    const seesaw = createSeesawPlay(problems)
+    const practice = emptyPractice('mix', problems, '🌸')
+    practice.settled = true
+    const parsed = parsePlay(
+      {
+        view: 'complete',
+        practice,
+        bus,
+        seesaw,
+        busSticker: 'not-a-sticker',
+        seesawSticker: 12,
+      },
+      'mix',
+    )
+    expect(parsed?.practice.stickerEmoji).toBe('🌸')
+    expect(parsed?.practice.stickerId).toBeUndefined()
+    expect(parsed?.busSticker).toBeUndefined()
+    expect(parsed?.seesawSticker).toBeUndefined()
+    expect(parsed?.bus?.settled).toBe(true)
+    expect(parsed?.seesaw?.index).toBe(0)
+    expect(parsed?.view).toBe('complete')
+  })
 })

@@ -1,12 +1,20 @@
 <script setup lang="ts">
-defineProps<{
-  emoji: string
+import { computed } from 'vue'
+import { isStickerId, stickerUrl } from '../logic/stickerPool'
+
+const props = defineProps<{
+  stickerId?: string
+  emoji?: string
 }>()
+
+const src = computed(() => (isStickerId(props.stickerId) ? stickerUrl(props.stickerId) : ''))
+const mark = computed(() => (isStickerId(props.stickerId) ? props.stickerId : props.emoji ?? ''))
 </script>
 
 <template>
-  <div class="sticker" aria-label="贴纸">
-    <span class="face">{{ emoji }}</span>
+  <div class="sticker" aria-label="贴纸" :data-sticker="mark">
+    <img v-if="src" class="art" :src="src" alt="" width="104" height="104" />
+    <span v-else class="face">{{ emoji }}</span>
   </div>
 </template>
 
@@ -22,6 +30,12 @@ defineProps<{
   background: linear-gradient(180deg, #fffef8, #ffe7b3);
   box-shadow: 0 8px 0 #e0b15a;
   animation: pop 0.45s ease;
+}
+
+.art {
+  display: block;
+  width: 104px;
+  height: 104px;
 }
 
 .face {

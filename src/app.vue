@@ -5,6 +5,7 @@ import { useAppVersions } from './composables/useAppVersions'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import playSwitch from './components/playSwitch.vue'
 import { playKindOf } from './logic/playKind'
+import { displayStickerId } from './logic/stickerPool'
 import { createAppSession } from './session/appSession'
 import busCompleteView from './views/busCompleteView.vue'
 import busView from './views/busView.vue'
@@ -29,7 +30,9 @@ const {
 } = install
 const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
 const playKind = computed(() => playKindOf(state.view))
-const ticket = computed(() => state.bus?.trip.initialOnboard[0] ?? { kind: 'cat' as const, tint: 'gold' as const })
+const mathStickerId = computed(() => displayStickerId(state.stickerId, false))
+const busStickerId = computed(() => displayStickerId(state.busSticker, true))
+const seesawStickerId = computed(() => displayStickerId(state.seesawSticker, true))
 const reducedMotion = computed(
   () =>
     typeof window !== 'undefined' &&
@@ -99,7 +102,8 @@ onUnmounted(() => {
 
     <complete-view
       v-else-if="state.view === 'complete'"
-      :emoji="state.stickerEmoji"
+      :sticker-id="mathStickerId"
+      :emoji="mathStickerId ? '' : state.stickerEmoji"
       @again="session.anotherRound"
     />
 
@@ -116,8 +120,7 @@ onUnmounted(() => {
 
     <bus-complete-view
       v-else-if="state.view === 'busComplete'"
-      :kind="ticket.kind"
-      :tint="ticket.tint"
+      :sticker-id="busStickerId"
       @again="session.anotherBus"
     />
 
@@ -132,6 +135,7 @@ onUnmounted(() => {
 
     <seesaw-complete-view
       v-else-if="state.view === 'seesawComplete'"
+      :sticker-id="seesawStickerId"
       @again="session.anotherSeesaw"
     />
 

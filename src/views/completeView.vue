@@ -2,7 +2,8 @@
 import stickerCard from '../components/stickerCard.vue'
 
 defineProps<{
-  emoji: string
+  stickerId?: string
+  emoji?: string
 }>()
 
 const emit = defineEmits<{
@@ -14,7 +15,7 @@ const emit = defineEmits<{
   <section class="complete">
     <h1>做完啦</h1>
     <p class="copy">送你一张贴纸</p>
-    <sticker-card :emoji="emoji" />
+    <sticker-card :sticker-id="stickerId" :emoji="emoji" />
     <button type="button" class="again" @click="emit('again')">再来一轮</button>
   </section>
 </template>

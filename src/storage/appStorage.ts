@@ -1,4 +1,5 @@
 import type { Mode } from '../logic/makeProblem'
+import { parseStickerBag, type StickerId } from '../logic/stickerPool'
 import { parsePlay, type PlaySnapshot } from './playSnapshot'
 
 export const STORAGE_KEY = 'idea10Nb.v1'
@@ -18,6 +19,8 @@ export type SaveData = {
   seesawRoundsCompleted: number
   seesawFirstTryCorrect: number
   seesawHintCount: number
+  stickerBag: StickerId[]
+  stickerBagNext: number
   play: PlaySnapshot | null
 }
 
@@ -35,6 +38,8 @@ export const DEFAULT_SAVE: SaveData = {
   seesawRoundsCompleted: 0,
   seesawFirstTryCorrect: 0,
   seesawHintCount: 0,
+  stickerBag: [],
+  stickerBagNext: 0,
   play: null,
 }
 
@@ -78,6 +83,7 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
   const seesawRoundsCompleted = rec.seesawRoundsCompleted == null ? 0 : nonNegInt(rec.seesawRoundsCompleted)
   const seesawFirstTryCorrect = rec.seesawFirstTryCorrect == null ? 0 : nonNegInt(rec.seesawFirstTryCorrect)
   const seesawHintCount = rec.seesawHintCount == null ? 0 : nonNegInt(rec.seesawHintCount)
+  const bag = parseStickerBag(rec.stickerBag, rec.stickerBagNext)
   if (
     busTripsCompleted == null ||
     busSoloCompleted == null ||
@@ -102,6 +108,8 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
     seesawRoundsCompleted,
     seesawFirstTryCorrect,
     seesawHintCount,
+    stickerBag: bag.order,
+    stickerBagNext: bag.next,
   }
 }
 
