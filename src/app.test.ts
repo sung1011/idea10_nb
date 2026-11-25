@@ -23,7 +23,7 @@ function button(el: HTMLElement, label: string) {
 }
 
 function keypad(el: HTMLElement, label: string) {
-  const found = [...el.querySelectorAll('.keypad button')].find(
+  const found = [...el.querySelectorAll<HTMLButtonElement>('.keypad button')].find(
     (node) => node.getAttribute('aria-label') === label || node.textContent?.trim() === label,
   )
   if (!found) throw new Error(`missing keypad ${label}`)
