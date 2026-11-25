@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.2', version: '0.6.2', date: '2026-11-25', summary: '坐车改为十题' },
+  { id: 'v0.6.3', version: '0.6.3', date: '2026-11-25', summary: '自动保存进度' },
 ]
 
 function mountApp() {
@@ -84,7 +84,8 @@ describe('界面响应', () => {
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('3')
     vueApp.unmount()
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    expect(saved.play.practice.input).toBe('3')
   })
 
   it('远端更新时设置下出现 popover，设置页隐藏；首题空白可直接更新', async () => {
@@ -200,6 +201,16 @@ describe('界面响应', () => {
     expect(el.textContent).toContain('坐车次数 0')
     expect(el.textContent).toContain('独立完成 0')
     vueApp.unmount()
+    const again = mountApp()
+    await nextTick()
+    expect(again.el.querySelector('.blank')?.textContent).toBe('3')
+    byAria(again.el, '坐车').click()
+    await nextTick()
+    expect(again.el.querySelector('[data-depart]')).toBeTruthy()
+    byAria(again.el, '算术').click()
+    await nextTick()
+    expect(again.el.querySelector('.blank')?.textContent).toBe('3')
+    again.vueApp.unmount()
   })
 
   it('坐车有进展时更新要确认；完成页不无谓确认', async () => {

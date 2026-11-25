@@ -29,6 +29,13 @@ import {
   type SaveData,
   type StorageLike,
 } from '../storage/appStorage'
+import {
+  busForDisk,
+  emptyPractice,
+  gameViewFrom,
+  livePractice,
+  type PlaySnapshot,
+} from '../storage/playSnapshot'
 
 export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete'
 
@@ -105,10 +112,25 @@ export function createAppSession(
       window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const loaded = loadSave(storage)
   let busTimer = 0
+  let hydrated = false
   const synthOf = () =>
     options.synth !== undefined
       ? options.synth
       : wrapBrowserSynth(typeof window !== 'undefined' ? window.speechSynthesis : null)
+
+  const statsOnly = (data: SaveData): SaveData => ({
+    version: 2,
+    mode: data.mode,
+    roundsCompleted: data.roundsCompleted,
+    firstTryCorrect: data.firstTryCorrect,
+    hintUsed: data.hintUsed,
+    stickerCount: data.stickerCount,
+    busTripsCompleted: data.busTripsCompleted,
+    busSoloCompleted: data.busSoloCompleted,
+    busAdjustCount: data.busAdjustCount,
+    busHintCount: data.busHintCount,
+    play: data.play ?? null,
+  })
 
   const state = reactive<AppState>({
     view: 'practice',
@@ -123,7 +145,7 @@ export function createAppSession(
     hintOnce: [],
     firstTryThisRound: 0,
     hintThisRound: 0,
-    stats: loaded.data,
+    stats: statsOnly(loaded.data),
     writable: loaded.writable,
     storageMessage: loaded.message,
     feedback: '',
@@ -141,6 +163,68 @@ export function createAppSession(
     }
   }
 
+  function buildPlay(): PlaySnapshot {
+    const pendingMode =
+      state.view === 'settings' &&
+      state.settingsOpenedMode != null &&
+      state.settingsOpenedMode !== state.mode
+    const view = gameViewFrom(
+      pendingMode && (state.settingsOpenedView === 'complete' || state.settingsOpenedView === 'practice')
+        ? 'practice'
+        : state.view,
+      pendingMode && state.settingsOpenedView === 'complete' ? 'practice' : state.settingsOpenedView,
+      pendingMode ? false : state.settled,
+    )
+    const practice = pendingMode
+      ? emptyPractice(state.mode, makeRound(state.mode, ROUND_SIZE, rng), state.stickerEmoji)
+      : livePractice(state)
+    return {
+      view,
+      practice,
+      bus: state.bus ? busForDisk(state.bus) : null,
+    }
+  }
+
+  function persistAll(nextStats?: SaveData): boolean {
+    if (!hydrated) return false
+    if (!state.writable) {
+      if (!state.storageMessage) {
+        state.storageMessage = '存档不可写入，未保存。'
+      }
+      return false
+    }
+    const base = nextStats ?? state.stats
+    const next: SaveData = {
+      ...statsOnly(base),
+      mode: state.mode,
+      play: buildPlay(),
+    }
+    const result = writeSave(storage, next)
+    if (!result.ok) {
+      state.storageMessage = result.message
+      return false
+    }
+    state.stats = next
+    state.storageMessage = ''
+    return true
+  }
+
+  function applyPractice(practice: PlaySnapshot['practice']) {
+    state.mode = practice.mode
+    state.problems = practice.problems
+    state.index = practice.index
+    state.input = practice.input
+    state.showHint = practice.showHint
+    state.locked = practice.settled
+    state.settled = practice.settled
+    state.wrongOnce = practice.wrongOnce.slice()
+    state.hintOnce = practice.hintOnce.slice()
+    state.firstTryThisRound = practice.firstTryThisRound
+    state.hintThisRound = practice.hintThisRound
+    state.feedback = practice.feedback
+    state.stickerEmoji = practice.stickerEmoji
+  }
+
   function startRound(mode: Mode = state.mode) {
     state.mode = mode
     state.problems = makeRound(mode, ROUND_SIZE, rng)
@@ -155,25 +239,7 @@ export function createAppSession(
     state.hintThisRound = 0
     state.feedback = ''
     state.view = 'practice'
-  }
-
-  startRound(state.mode)
-
-  function persist(next: SaveData): boolean {
-    if (!state.writable) {
-      if (!state.storageMessage) {
-        state.storageMessage = '存档不可写入，未保存。'
-      }
-      return false
-    }
-    const result = writeSave(storage, next)
-    if (!result.ok) {
-      state.storageMessage = result.message
-      return false
-    }
-    state.stats = next
-    state.storageMessage = ''
-    return true
+    persistAll()
   }
 
   function finishRound() {
@@ -185,7 +251,7 @@ export function createAppSession(
     state.feedback = ''
     state.stickerEmoji = STICKERS[state.stats.stickerCount % STICKERS.length]
     state.view = 'complete'
-    persist({
+    persistAll({
       ...state.stats,
       mode: state.mode,
       roundsCompleted: state.stats.roundsCompleted + 1,
@@ -200,7 +266,7 @@ export function createAppSession(
     if (!play || !play.settled || play.accounted) return
     play.accounted = true
     state.view = 'busComplete'
-    persist({
+    persistAll({
       ...state.stats,
       busTripsCompleted: state.stats.busTripsCompleted + 1,
       busSoloCompleted: state.stats.busSoloCompleted + (play.hintThisTrip === 0 ? 1 : 0),
@@ -219,11 +285,13 @@ export function createAppSession(
     if (play.motion === 'enter') {
       play.moving = false
       play.motion = 'idle'
+      persistAll()
       return
     }
     const result = arriveNext(play)
     play.motion = 'idle'
     if (result === 'done') finishBus()
+    else persistAll()
   }
 
   function startBus() {
@@ -231,7 +299,18 @@ export function createAppSession(
     state.bus = createBusPlay(makeBusTrip(rng))
     cancelSpeech()
     state.view = 'bus'
+    persistAll()
   }
+
+  if (loaded.data.play) {
+    applyPractice(loaded.data.play.practice)
+    state.bus = loaded.data.play.bus
+    state.view = loaded.data.play.view
+  } else {
+    startRound(state.mode)
+  }
+  hydrated = true
+  if (state.bus?.settled && !state.bus.accounted) finishBus()
 
   function tapDigit(digit: string) {
     if (state.view !== 'practice' || state.locked || state.settled) return
@@ -239,12 +318,14 @@ export function createAppSession(
     if (state.input.length >= 2) return
     state.feedback = ''
     state.input += digit
+    persistAll()
   }
 
   function tapDelete() {
     if (state.view !== 'practice' || state.locked || state.settled) return
     state.feedback = ''
     state.input = state.input.slice(0, -1)
+    persistAll()
   }
 
   function tapConfirm() {
@@ -257,6 +338,7 @@ export function createAppSession(
       state.input = ''
       state.feedback = 'wrong'
       state.locked = false
+      persistAll()
       return
     }
     if (!state.wrongOnce[state.index]) {
@@ -271,6 +353,7 @@ export function createAppSession(
     }
     state.index += 1
     state.locked = false
+    persistAll()
   }
 
   function toggleHint() {
@@ -281,6 +364,7 @@ export function createAppSession(
       state.hintOnce[state.index] = true
       state.hintThisRound += 1
     }
+    persistAll()
   }
 
   function cancelSpeech() {
@@ -296,6 +380,7 @@ export function createAppSession(
     state.settingsOpenedMode = state.mode
     state.resetConfirming = false
     state.view = 'settings'
+    persistAll()
   }
 
   function closeSettings() {
@@ -306,6 +391,7 @@ export function createAppSession(
     state.resetConfirming = false
     if (openedView === 'bus' || openedView === 'busComplete') {
       state.view = openedView
+      persistAll()
       return
     }
     if (openedMode != null && openedMode !== state.mode) {
@@ -314,15 +400,17 @@ export function createAppSession(
     }
     if (state.settled) {
       state.view = 'complete'
+      persistAll()
       return
     }
     state.view = 'practice'
+    persistAll()
   }
 
   function setMode(mode: Mode) {
     if (mode === state.mode) return
     state.mode = mode
-    persist({ ...state.stats, mode })
+    persistAll()
   }
 
   function anotherRound() {
@@ -337,6 +425,7 @@ export function createAppSession(
       return
     }
     state.view = 'bus'
+    persistAll()
   }
 
   function openPractice() {
@@ -344,9 +433,11 @@ export function createAppSession(
     flushBusMove()
     if (state.settled) {
       state.view = 'complete'
+      persistAll()
       return
     }
     state.view = 'practice'
+    persistAll()
   }
 
   function anotherBus() {
@@ -407,57 +498,64 @@ export function createAppSession(
 
   function busTapWaiting(animalId: string) {
     withBus((play) => {
-      tapWaiting(play, animalId)
+      if (tapWaiting(play, animalId)) persistAll()
     })
   }
 
   function busTapSeat(index: number) {
     withBus((play) => {
-      tapSeat(play, index)
+      if (tapSeat(play, index)) persistAll()
     })
   }
 
   function busTapOff(animalId: string) {
     withBus((play) => {
-      tapOffArea(play, animalId)
+      if (tapOffArea(play, animalId)) persistAll()
     })
   }
 
   function busUndo() {
     withBus((play) => {
-      undoLast(play)
+      if (undoLast(play)) persistAll()
     })
   }
 
   function busResetStop() {
     withBus((play) => {
-      resetStation(play)
+      if (resetStation(play)) persistAll()
     })
   }
 
   function busHelper() {
     withBus((play) => {
-      toggleHelper(play)
+      if (toggleHelper(play)) persistAll()
     })
   }
 
   function busDepart() {
     withBus((play) => {
       const result = depart(play)
-      if (result !== 'ok') return
+      if (result === 'locked') return
+      if (result !== 'ok') {
+        persistAll()
+        return
+      }
       clearBusTimer()
       if (reducedMotion()) {
         play.motion = 'flash'
+        persistAll()
         busTimer = delay(() => {
           busTimer = 0
           if (!state.bus?.moving) return
           const next = arriveNext(state.bus)
           state.bus.motion = 'idle'
           if (next === 'done') finishBus()
+          else persistAll()
         }, BUS_FLASH_MS)
         return
       }
       play.motion = 'leave'
+      persistAll()
       busTimer = delay(() => {
         busTimer = 0
         if (!state.bus?.moving) return
@@ -466,11 +564,13 @@ export function createAppSession(
           finishBus()
           return
         }
+        persistAll()
         busTimer = delay(() => {
           busTimer = 0
           if (!state.bus?.moving) return
           state.bus.moving = false
           state.bus.motion = 'idle'
+          persistAll()
         }, BUS_ENTER_MS)
       }, BUS_LEAVE_MS)
     })
@@ -487,7 +587,7 @@ export function createAppSession(
 
   function busHelp() {
     withBus((play) => {
-      toggleHelper(play)
+      if (toggleHelper(play)) persistAll()
     })
     if (state.bus?.helperOpen) busSpeakNumber()
     else cancelSpeech()

@@ -106,7 +106,7 @@ describe('练习会话', () => {
     expect(session.state.problems.every((item) => item.op === '-')).toBe(true)
   })
 
-  it('刷新后按已存设置重开新轮，不停在完成页', () => {
+  it('完成页刷新仍停在完成页且统计不加', () => {
     const storage = memoryStorage()
     const first = createAppSession({ storage, rng: mulberry32(8) })
     first.openSettings()
@@ -115,11 +115,25 @@ describe('练习会话', () => {
     finishRound(first)
     expect(first.state.stats.roundsCompleted).toBe(1)
     const again = createAppSession({ storage, rng: mulberry32(9) })
-    expect(again.state.view).toBe('practice')
+    expect(again.state.view).toBe('complete')
     expect(again.state.mode).toBe('sub')
-    expect(again.state.problems.every((item) => item.op === '-')).toBe(true)
+    expect(again.state.settled).toBe(true)
     expect(again.state.stats.roundsCompleted).toBe(1)
-    expect(again.state.settled).toBe(false)
+    const third = createAppSession({ storage, rng: mulberry32(10) })
+    expect(third.state.stats.roundsCompleted).toBe(1)
+    expect(third.state.view).toBe('complete')
+    third.anotherRound()
+    expect(third.state.view).toBe('practice')
+    expect(third.state.problems.every((item) => item.op === '-')).toBe(true)
+    const replay = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(replay.roundsCompleted).toBe(1)
+    expect(replay.play.view).toBe('practice')
+    expect(replay.play.practice.index).toBe(0)
+    expect(replay.play.practice.settled).toBe(false)
+    const fourth = createAppSession({ storage, rng: mulberry32(11) })
+    expect(fourth.state.view).toBe('practice')
+    expect(fourth.state.stats.roundsCompleted).toBe(1)
+    expect(fourth.state.problems).toEqual(third.state.problems)
   })
 
   it('坏存档不覆盖，完成轮次也不写坏键', () => {
@@ -163,8 +177,11 @@ describe('练习会话', () => {
     expect(session.state.mode).toBe('mix')
     expect(session.state.view).toBe('practice')
     expect(storage.getItem('otherApp')).toBe('keep')
-    expect(storage.getItem(STORAGE_KEY)).toBeNull()
     expect(storage.getItem(ACKED_VERSION_KEY)).toBeNull()
+    const afterReset = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(afterReset.roundsCompleted).toBe(0)
+    expect(afterReset.play.practice.index).toBe(0)
+    expect(afterReset.play.view).toBe('practice')
   })
 
   it('做题中有进展才算本轮进度', () => {
@@ -499,7 +516,7 @@ describe('坐车会话', () => {
     expect(session.state.stats.busTripsCompleted).toBe(1)
   })
 
-  it('无语音朗读静默失败；刷新丢中途局但保留已存统计', () => {
+  it('无语音朗读静默失败；完成坐车刷新仍出票且统计不加', () => {
     const storage = memoryStorage()
     const session = createAppSession({
       storage,
@@ -514,8 +531,8 @@ describe('坐车会话', () => {
     while (!session.state.bus?.settled) passCurrentStop(session)
     expect(session.state.stats.busTripsCompleted).toBe(1)
     const again = createAppSession({ storage, rng: mulberry32(36), reducedMotion: () => true })
-    expect(again.state.view).toBe('practice')
-    expect(again.state.bus).toBeNull()
+    expect(again.state.view).toBe('busComplete')
+    expect(again.state.bus?.settled).toBe(true)
     expect(again.state.stats.busTripsCompleted).toBe(1)
     expect(again.state.stats.roundsCompleted).toBe(0)
   })
@@ -546,5 +563,219 @@ describe('坐车会话', () => {
     expect(ok.state.view).toBe('practice')
     expect(ok.state.bus).toBeNull()
   })
+
+  it('坐车中途刷新续玩；动画各阶段刷新不重复过题', () => {
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(50),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    fillCurrentStop(session)
+    const firstTarget = currentStation(session.state.bus!).target
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('leave')
+    const afterLeave = createAppSession({ storage, rng: mulberry32(51), reducedMotion: () => false })
+    expect(afterLeave.state.view).toBe('bus')
+    expect(afterLeave.state.bus?.moving).toBe(false)
+    expect(afterLeave.state.bus?.stationIndex).toBe(1)
+    expect(currentStation(afterLeave.state.bus!).target).not.toBe(firstTarget)
+
+    fillCurrentStop(afterLeave)
+    const enterTimer = mockDelay()
+    const moving = createAppSession({
+      storage,
+      rng: mulberry32(52),
+      reducedMotion: () => false,
+      delay: enterTimer.delay,
+      cancelDelay: enterTimer.cancel,
+    })
+    fillCurrentStop(moving)
+    moving.busDepart()
+    enterTimer.fire()
+    expect(moving.state.bus?.motion).toBe('enter')
+    const at = moving.state.bus!.stationIndex
+    const afterEnter = createAppSession({ storage, rng: mulberry32(53), reducedMotion: () => false })
+    expect(afterEnter.state.bus?.stationIndex).toBe(at)
+    expect(afterEnter.state.bus?.moving).toBe(false)
+  })
+
+  it('末题驶离中刷新只结算一次', () => {
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(54),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    while ((session.state.bus?.stationIndex ?? 0) < STATION_COUNT - 1) {
+      fillCurrentStop(session)
+      session.busDepart()
+      timer.fire()
+      timer.fire()
+    }
+    fillCurrentStop(session)
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('leave')
+    expect(session.state.stats.busTripsCompleted).toBe(0)
+    const restored = createAppSession({ storage, rng: mulberry32(55), reducedMotion: () => true })
+    expect(restored.state.view).toBe('busComplete')
+    expect(restored.state.stats.busTripsCompleted).toBe(1)
+    const again = createAppSession({ storage, rng: mulberry32(56), reducedMotion: () => true })
+    expect(again.state.stats.busTripsCompleted).toBe(1)
+  })
 })
+
+describe('自动存档恢复', () => {
+  it('v1 统计可迁移；初始化不覆盖；输入刷新仍在', () => {
+    const storage = memoryStorage({
+      [STORAGE_KEY]: JSON.stringify({
+        version: 1,
+        mode: 'add',
+        roundsCompleted: 7,
+        firstTryCorrect: 20,
+        hintUsed: 2,
+        stickerCount: 7,
+      }),
+    })
+    const session = createAppSession({ storage, rng: mulberry32(60) })
+    expect(session.state.stats.roundsCompleted).toBe(7)
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}').version).toBe(1)
+    session.tapDigit('3')
+    const saved = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(saved.version).toBe(2)
+    expect(saved.play.practice.input).toBe('3')
+    expect(saved.roundsCompleted).toBe(7)
+    const again = createAppSession({ storage, rng: mulberry32(61) })
+    expect(again.state.input).toBe('3')
+    expect(again.state.mode).toBe('add')
+    expect(again.state.view).toBe('practice')
+    expect(again.state.problems).toEqual(session.state.problems)
+  })
+
+  it('设置里改模式未退出就刷新：新模式新题且不丢坐车', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(62), reducedMotion: () => true })
+    session.openBus()
+    const tripStart = session.state.bus?.trip.startCount
+    session.openSettings()
+    session.setMode('add')
+    expect(session.state.problems.some((item) => item.op === '-')).toBe(true)
+    const disk = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(disk.mode).toBe('add')
+    expect(disk.play.practice.mode).toBe('add')
+    expect(disk.play.practice.problems.every((item: { op: string }) => item.op === '+')).toBe(true)
+    expect(disk.play.view).toBe('bus')
+    const again = createAppSession({ storage, rng: mulberry32(63), reducedMotion: () => true })
+    expect(again.state.mode).toBe('add')
+    expect(again.state.view).toBe('bus')
+    expect(again.state.problems.every((item) => item.op === '+')).toBe(true)
+    expect(again.state.bus?.trip.startCount).toBe(tripStart)
+  })
+
+  it('更高版本不覆盖；写失败不改统计', () => {
+    const raw = JSON.stringify({ ...DEFAULT_SAVE, version: 3, roundsCompleted: 9 })
+    const frozen = memoryStorage({ [STORAGE_KEY]: raw, otherApp: 'keep' })
+    const blocked = createAppSession({ storage: frozen, rng: mulberry32(64) })
+    blocked.tapDigit('1')
+    expect(frozen.getItem(STORAGE_KEY)).toBe(raw)
+    expect(frozen.getItem('otherApp')).toBe('keep')
+
+    const failing = {
+      getItem() {
+        return null
+      },
+      setItem() {
+        throw new Error('quota')
+      },
+      removeItem() {},
+    }
+    const session = createAppSession({ storage: failing, rng: mulberry32(65) })
+    session.tapDigit('2')
+    expect(session.state.stats).toEqual(DEFAULT_SAVE)
+    expect(session.state.storageMessage).toContain('写入失败')
+  })
+
+  it('两玩法互留：算术输入和坐车进度都能恢复', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(66), reducedMotion: () => true })
+    session.tapDigit('4')
+    session.openBus()
+    fillCurrentStop(session)
+    session.busDepart()
+    session.flushBusMove()
+    const index = session.state.bus!.stationIndex
+    const restored = createAppSession({ storage, rng: mulberry32(67), reducedMotion: () => true })
+    expect(restored.state.view).toBe('bus')
+    expect(restored.state.bus?.stationIndex).toBe(index)
+    restored.openPractice()
+    expect(restored.state.input).toBe('4')
+  })
+
+  it('设置刷新回到进入前玩法；算术里改模式未退出则新开算术', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(68), reducedMotion: () => true })
+    session.tapDigit('5')
+    session.toggleHint()
+    session.openSettings()
+    const fromSettings = createAppSession({ storage, rng: mulberry32(69) })
+    expect(fromSettings.state.view).toBe('practice')
+    expect(fromSettings.state.input).toBe('5')
+    expect(fromSettings.state.showHint).toBe(true)
+    fromSettings.openSettings()
+    fromSettings.setMode('add')
+    const afterMode = createAppSession({ storage, rng: mulberry32(70) })
+    expect(afterMode.state.view).toBe('practice')
+    expect(afterMode.state.mode).toBe('add')
+    expect(afterMode.state.input).toBe('')
+    expect(afterMode.state.problems.every((item) => item.op === '+')).toBe(true)
+  })
+
+  it('有效快照初始化不覆盖；发车失败锁可恢复', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(71), reducedMotion: () => true })
+    session.tapDigit('6')
+    const raw = storage.getItem(STORAGE_KEY)
+    createAppSession({ storage, rng: mulberry32(72) })
+    expect(storage.getItem(STORAGE_KEY)).toBe(raw)
+    const bus = createAppSession({ storage, rng: mulberry32(73), reducedMotion: () => true })
+    bus.openBus()
+    bus.busDepart()
+    expect(bus.state.bus?.departLocked).toBe(true)
+    const again = createAppSession({ storage, rng: mulberry32(74), reducedMotion: () => true })
+    expect(again.state.view).toBe('bus')
+    expect(again.state.bus?.departLocked).toBe(true)
+    expect(again.state.input).toBe('6')
+  })
+
+  it('减弱动画闪灯中刷新已到下一题', () => {
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(75),
+      reducedMotion: () => true,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.openBus()
+    fillCurrentStop(session)
+    session.busDepart()
+    expect(session.state.bus?.motion).toBe('flash')
+    expect(session.state.bus?.stationIndex).toBe(0)
+    const restored = createAppSession({ storage, rng: mulberry32(76), reducedMotion: () => true })
+    expect(restored.state.bus?.moving).toBe(false)
+    expect(restored.state.bus?.motion).toBe('idle')
+    expect(restored.state.bus?.stationIndex).toBe(1)
+    expect(restored.state.stats.busTripsCompleted).toBe(0)
+  })
+})
+
 

@@ -1,7 +1,8 @@
 import type { Mode } from '../logic/makeProblem'
+import { parsePlay, type PlaySnapshot } from './playSnapshot'
 
 export const STORAGE_KEY = 'idea10Nb.v1'
-export const STORAGE_VERSION = 1
+export const STORAGE_VERSION = 2
 
 export type SaveData = {
   version: typeof STORAGE_VERSION
@@ -14,6 +15,7 @@ export type SaveData = {
   busSoloCompleted: number
   busAdjustCount: number
   busHintCount: number
+  play: PlaySnapshot | null
 }
 
 export const DEFAULT_SAVE: SaveData = {
@@ -27,6 +29,7 @@ export const DEFAULT_SAVE: SaveData = {
   busSoloCompleted: 0,
   busAdjustCount: 0,
   busHintCount: 0,
+  play: null,
 }
 
 export type StorageLike = {
@@ -53,10 +56,7 @@ function nonNegInt(value: unknown): number | null {
   return value
 }
 
-export function parseSave(raw: unknown): SaveData | null {
-  if (!raw || typeof raw !== 'object') return null
-  const rec = raw as Record<string, unknown>
-  if (rec.version !== STORAGE_VERSION) return null
+function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'version'> | null {
   if (!isMode(rec.mode)) return null
   const roundsCompleted = nonNegInt(rec.roundsCompleted)
   const firstTryCorrect = nonNegInt(rec.firstTryCorrect)
@@ -78,7 +78,6 @@ export function parseSave(raw: unknown): SaveData | null {
     return null
   }
   return {
-    version: STORAGE_VERSION,
     mode: rec.mode,
     roundsCompleted,
     firstTryCorrect,
@@ -89,6 +88,23 @@ export function parseSave(raw: unknown): SaveData | null {
     busAdjustCount,
     busHintCount,
   }
+}
+
+export function parseSave(raw: unknown): SaveData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const rec = raw as Record<string, unknown>
+  if (rec.version !== 1 && rec.version !== 2) return null
+  if (typeof rec.version === 'number' && rec.version > STORAGE_VERSION) return null
+  const stats = parseStats(rec)
+  if (!stats) return null
+  if (rec.version === 1) {
+    return { ...stats, version: STORAGE_VERSION, play: null }
+  }
+  let play: PlaySnapshot | null = null
+  if (rec.play != null) {
+    play = parsePlay(rec.play, stats.mode)
+  }
+  return { ...stats, version: STORAGE_VERSION, play }
 }
 
 export function loadSave(storage: StorageLike): LoadResult {
