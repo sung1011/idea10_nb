@@ -5,7 +5,7 @@ import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
   { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.6.1', version: '0.6.1', date: '2026-11-25', summary: '目标只显示数字，巴士开走' },
+  { id: 'v0.6.2', version: '0.6.2', date: '2026-11-25', summary: '坐车改为十题' },
 ]
 
 function mountApp() {
@@ -181,7 +181,8 @@ describe('界面响应', () => {
     await nextTick()
     expect(el.querySelector('[data-depart]')).toBeTruthy()
     expect(el.querySelectorAll('[data-seat]').length).toBe(10)
-    expect(el.querySelectorAll('[data-stop]').length).toBe(5)
+    expect(el.querySelectorAll('[data-stop]').length).toBe(0)
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
     expect(el.querySelector('[data-target]')).toBeTruthy()
     expect(el.querySelector('[data-target] svg')).toBeFalsy()
     expect(el.querySelector('[data-target]')?.textContent?.trim()).toMatch(/^\d+$/)
@@ -189,10 +190,11 @@ describe('界面响应', () => {
     expect(el.querySelectorAll('[data-tire]').length).toBe(2)
     expect(el.querySelectorAll('[data-lamp]').length).toBe(2)
     const child = el.querySelector('.bus')?.textContent ?? ''
-    expect(child).not.toMatch(/发车|候车|少了|小帮手|喇叭|撤回|本站重来/)
+    expect(child).not.toMatch(/发车|候车|少了|小帮手|喇叭|撤回|本站重来|家门口|花园|池塘|果园|野餐地/)
     byAria(el, '算术').click()
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('3')
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
     button(el, '设置').click()
     await nextTick()
     expect(el.textContent).toContain('坐车次数 0')
@@ -325,7 +327,7 @@ describe('坐车界面整局', () => {
     vi.restoreAllMocks()
   })
 
-  it('故意错一次、提示一次后走完五站，统计只加一次', async () => {
+  it('故意错一次、提示一次后走完十题，第五题不结束，统计只加一次', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
     byAria(el, '坐车').click()
@@ -344,6 +346,12 @@ describe('坐车界面整局', () => {
     for (let i = 0; i < 5; i += 1) {
       await playOneStop(el)
     }
+    expect(el.querySelector('[data-again]')).toBeFalsy()
+    expect(el.querySelector('[data-cabin]')).toBeTruthy()
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 6 / 10 题')
+    for (let i = 0; i < 5; i += 1) {
+      await playOneStop(el)
+    }
     expect(el.querySelector('[data-again]')).toBeTruthy()
     expect(el.textContent).not.toContain('车票')
     button(el, '设置').click()
@@ -352,9 +360,16 @@ describe('坐车界面整局', () => {
     expect(el.textContent).toContain('独立完成 0')
     expect(el.textContent).toContain('调整次数 1')
     expect(el.textContent).toContain('坐车提示 1')
+    button(el, '返回').click()
+    await nextTick()
+    const again = el.querySelector('[data-again]') as HTMLButtonElement
+    again.click()
+    await nextTick()
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
+    expect(el.querySelector('[data-cabin]')).toBeTruthy()
     vueApp.unmount()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').busTripsCompleted).toBe(1)
-  })
+  }, 15000)
 })
 
 describe('坐车动画与撤回', () => {

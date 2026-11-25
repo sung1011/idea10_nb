@@ -3,8 +3,7 @@ import { computed, onBeforeUnmount, watch } from 'vue'
 import busCabin from '../components/busCabin.vue'
 import animalFace from '../components/animalFace.vue'
 import countHelp from '../components/countHelp.vue'
-import stopMark from '../components/stopMark.vue'
-import { STOP_NAMES } from '../logic/busRoute'
+import progressLabel from '../components/progressLabel.vue'
 import {
   currentStation,
   errorCue,
@@ -61,11 +60,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="bus" :data-cue="cue" :data-kind="station.kind">
-    <ol class="route" aria-label="路线">
-      <li v-for="(name, index) in STOP_NAMES" :key="name">
-        <stop-mark :index="index" :current="index === play.stationIndex" :done="index < play.stationIndex" :label="name" />
-      </li>
-    </ol>
+    <progress-label :index="play.stationIndex" :total="play.trip.stations.length" />
 
     <div v-if="station.kind === 'board'" class="yard" data-yard="wait">
       <button
@@ -164,15 +159,6 @@ onBeforeUnmount(() => {
 .lane {
   width: 100%;
   overflow: hidden;
-}
-
-.route {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .yard,

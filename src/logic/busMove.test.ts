@@ -16,7 +16,7 @@ import {
   toggleHelper,
   undoLast,
 } from './busMove'
-import { makeBusTrip, type Animal, type BusTrip } from './busRoute'
+import { STATION_COUNT, makeBusTrip, type Animal, type BusTrip } from './busRoute'
 
 function animal(id: string): Animal {
   return { id, kind: 'cat', tint: 'teal' }
@@ -186,13 +186,17 @@ describe('当站上下车与撤回', () => {
     expect(play.hintThisTrip).toBe(2)
   })
 
-  it('生成路线能整局走完', () => {
+  it('生成路线十题才能走完，第五题不结束', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
       const play = createBusPlay(makeBusTrip(mulberry32(seed)))
-      while (!play.settled) {
-        passStation(play)
-      }
-      expect(play.stationIndex).toBe(4)
+      expect(play.trip.stations).toHaveLength(STATION_COUNT)
+      expect(play.hintOnce).toHaveLength(STATION_COUNT)
+      for (let i = 0; i < 5; i += 1) passStation(play)
+      expect(play.settled).toBe(false)
+      expect(play.stationIndex).toBe(5)
+      while (!play.settled) passStation(play)
+      expect(play.stationIndex).toBe(STATION_COUNT - 1)
+      expect(play.settled).toBe(true)
     }
   })
 })

@@ -2,7 +2,7 @@ import { shuffle } from './makeProblem'
 
 export const STOP_NAMES = ['家门口', '花园', '池塘', '果园', '野餐地'] as const
 export const SEAT_COUNT = 10
-export const STATION_COUNT = 5
+export const STATION_COUNT = 10
 
 export type StopKind = 'board' | 'alight'
 export type AnimalKind = 'cat' | 'rabbit' | 'bear' | 'bird' | 'frog'
@@ -15,7 +15,7 @@ export type Animal = {
 }
 
 export type StationPlan = {
-  name: (typeof STOP_NAMES)[number]
+  name: string
   kind: StopKind
   target: number
   waiting: Animal[]
@@ -82,9 +82,9 @@ export function isValidTrip(trip: BusTrip): boolean {
   let current = trip.startCount
   let sawBoard = false
   let sawAlight = false
-  for (let i = 0; i < STATION_COUNT; i += 1) {
+  for (let i = 0; i < trip.stations.length; i += 1) {
     const station = trip.stations[i]
-    if (!station || station.name !== STOP_NAMES[i]) return false
+    if (!station) return false
     if (station.target < 1 || station.target > SEAT_COUNT) return false
     if (station.target === current) return false
     if (station.kind === 'board') {
@@ -137,7 +137,7 @@ export function makeBusTrip(rng: () => number = Math.random): BusTrip {
         : []
 
     stations.push({
-      name: STOP_NAMES[i]!,
+      name: String(i + 1),
       kind,
       target,
       waiting: shuffle(waiting, rng),

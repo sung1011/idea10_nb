@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ACKED_VERSION_KEY } from '../logic/appVersion'
 import { mulberry32, problemKey } from '../logic/makeProblem'
 import { currentStation, onboardCount } from '../logic/busMove'
+import { STATION_COUNT } from '../logic/busRoute'
 import { DEFAULT_SAVE, STORAGE_KEY, memoryStorage } from '../storage/appStorage'
 import { createAppSession, hasBusyProgress, hasRoundProgress } from './appSession'
 
@@ -360,7 +361,7 @@ describe('坐车会话', () => {
     expect(hasBusyProgress(session.state)).toBe(false)
   })
 
-  it('完成五站只结算一次；独立完成允许试错；看帮手不算独立', () => {
+  it('完成十题只结算一次；独立完成允许试错；看帮手不算独立', () => {
     const storage = memoryStorage()
     const session = createAppSession({
       storage,
@@ -368,10 +369,16 @@ describe('坐车会话', () => {
       reducedMotion: () => true,
     })
     session.openBus()
+    expect(session.state.bus?.trip.stations).toHaveLength(STATION_COUNT)
     session.busDepart()
     expect(session.state.bus?.adjustThisTrip).toBe(1)
     session.busDepart()
     expect(session.state.bus?.adjustThisTrip).toBe(1)
+    for (let i = 0; i < 5; i += 1) passCurrentStop(session)
+    expect(session.state.bus?.settled).toBe(false)
+    expect(session.state.view).toBe('bus')
+    expect(session.state.stats.busTripsCompleted).toBe(0)
+    expect(session.state.bus?.stationIndex).toBe(5)
     while (!session.state.bus?.settled) passCurrentStop(session)
     expect(session.state.stats.busTripsCompleted).toBe(1)
     expect(session.state.stats.busSoloCompleted).toBe(1)
@@ -476,13 +483,13 @@ describe('坐车会话', () => {
       cancelDelay: timer.cancel,
     })
     session.openBus()
-    while ((session.state.bus?.stationIndex ?? 0) < 4) {
+    while ((session.state.bus?.stationIndex ?? 0) < STATION_COUNT - 1) {
       fillCurrentStop(session)
       session.busDepart()
       timer.fire()
       timer.fire()
     }
-    expect(session.state.bus?.stationIndex).toBe(4)
+    expect(session.state.bus?.stationIndex).toBe(STATION_COUNT - 1)
     fillCurrentStop(session)
     session.busDepart()
     expect(session.state.view).toBe('bus')

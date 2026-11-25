@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import blockHint from '../components/blockHint.vue'
 import numberKeypad from '../components/numberKeypad.vue'
+import progressLabel from '../components/progressLabel.vue'
 import type { Problem } from '../logic/makeProblem'
 
 defineProps<{
@@ -23,7 +24,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="practice">
-    <p class="progress">第 {{ index + 1 }} / {{ total }} 题</p>
+    <progress-label :index="index" :total="total" />
     <p class="eq" :class="{ shake: feedback === 'wrong' }" aria-live="polite">
       <span>{{ problem.a }}</span>
       <span>{{ problem.op }}</span>
@@ -51,7 +52,6 @@ const emit = defineEmits<{
   gap: 12px;
 }
 
-.progress,
 .nudge {
   margin: 0;
   text-align: center;

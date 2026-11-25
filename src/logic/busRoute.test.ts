@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mulberry32 } from './makeProblem'
 import {
-  STOP_NAMES,
+  STATION_COUNT,
   helperLines,
   isValidTrip,
   makeBusTrip,
@@ -14,7 +14,10 @@ describe('坐车路线', () => {
       expect(isValidTrip(trip)).toBe(true)
       expect(trip.startCount).toBeGreaterThanOrEqual(1)
       expect(trip.startCount).toBeLessThanOrEqual(9)
-      expect(trip.stations.map((station) => station.name)).toEqual([...STOP_NAMES])
+      expect(trip.stations).toHaveLength(STATION_COUNT)
+      expect(trip.stations.map((station) => station.name)).toEqual(
+        Array.from({ length: STATION_COUNT }, (_, index) => String(index + 1)),
+      )
       expect(trip.stations.some((station) => station.kind === 'board')).toBe(true)
       expect(trip.stations.some((station) => station.kind === 'alight')).toBe(true)
       let current = trip.startCount
