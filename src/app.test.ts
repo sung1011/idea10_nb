@@ -22,6 +22,14 @@ function button(el: HTMLElement, label: string) {
   return found
 }
 
+function keypad(el: HTMLElement, label: string) {
+  const found = [...el.querySelectorAll('.keypad button')].find(
+    (node) => node.getAttribute('aria-label') === label || node.textContent?.trim() === label,
+  )
+  if (!found) throw new Error(`missing keypad ${label}`)
+  return found
+}
+
 function playSwitch(el: HTMLElement) {
   const found = el.querySelector('[data-play-switch]') as HTMLSelectElement | null
   if (!found) throw new Error('missing play switch')
@@ -262,7 +270,7 @@ describe('界面响应', () => {
     const tilt = el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')
     expect(right).toMatch(/^\d+$/)
     expect(tilt).toMatch(/^-?\d+(\.\d+)?$/)
-    button(el, '1').click()
+    keypad(el, '1').click()
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('1')
     expect(el.querySelector('[data-pan="right"]')?.getAttribute('data-count')).toBe(right)
