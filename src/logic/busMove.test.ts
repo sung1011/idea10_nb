@@ -5,7 +5,9 @@ import {
   createBusPlay,
   currentStation,
   depart,
+  errorCue,
   hasBusProgress,
+  helpSlots,
   onboardCount,
   resetStation,
   tapOffArea,
@@ -117,6 +119,32 @@ describe('当站上下车与撤回', () => {
     expect(depart(play)).toBe('locked')
     expect(play.adjustThisTrip).toBe(2)
     expect(play.seats.some((seat) => seat?.id === 'w3')).toBe(true)
+    expect(errorCue(play)).toBe('board-back')
+  })
+
+  it('四类错误方向：上车少要再上、上车多退回；下车多请回、下车少再下', () => {
+    const play = createBusPlay(handmadeTrip())
+    expect(depart(play)).toBe('few')
+    expect(errorCue(play)).toBe('board-more')
+    tapWaiting(play, 'w1')
+    tapWaiting(play, 'w2')
+    tapWaiting(play, 'w3')
+    expect(depart(play)).toBe('many')
+    expect(errorCue(play)).toBe('board-back')
+    expect(helpSlots(play).some((slot) => slot.kind === 'extra')).toBe(true)
+
+    const alight = createBusPlay(handmadeTrip())
+    boardUntil(alight, 5)
+    depart(alight)
+    arriveNext(alight)
+    expect(currentStation(alight).kind).toBe('alight')
+    expect(depart(alight)).toBe('many')
+    expect(errorCue(alight)).toBe('alight-more')
+    alightUntil(alight, 0)
+    expect(depart(alight)).toBe('few')
+    expect(errorCue(alight)).toBe('alight-back')
+    const slots = helpSlots(alight)
+    expect(slots.filter((slot) => slot.kind === 'missing').length).toBe(2)
   })
 
   it('过站人数承接，完成只到终点', () => {

@@ -25,6 +25,12 @@ const {
 } = install
 const showUpdate = computed(() => state.view !== 'settings' && pending.value.length > 0)
 const ticket = computed(() => state.bus?.trip.initialOnboard[0] ?? { kind: 'cat' as const, tint: 'gold' as const })
+const reducedMotion = computed(
+  () =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+)
 
 function onKey(event: KeyboardEvent) {
   session.handleKeydown(event)
@@ -57,17 +63,26 @@ onUnmounted(() => {
           v-if="state.view === 'practice' || state.view === 'complete'"
           type="button"
           class="switch"
+          aria-label="坐车"
+          data-go-bus
           @click="session.openBus()"
         >
-          坐车
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="4" y="14" width="28" height="14" rx="4" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="2.4" />
+            <circle cx="12" cy="30" r="4" fill="#3b2a1a" />
+            <circle cx="26" cy="30" r="4" fill="#3b2a1a" />
+            <rect x="8" y="17" width="8" height="6" rx="1" fill="#fff4e4" />
+          </svg>
         </button>
         <button
           v-else
           type="button"
           class="switch"
+          aria-label="算术"
+          data-go-math
           @click="session.openPractice()"
         >
-          算术
+          <span class="math">3+</span>
         </button>
         <button
           type="button"
@@ -111,15 +126,12 @@ onUnmounted(() => {
     <bus-view
       v-else-if="state.view === 'bus' && state.bus"
       :play="state.bus"
-      :speak-fail="state.speakFail"
+      :reduced-motion="reducedMotion"
       @wait="session.busTapWaiting"
       @seat="session.busTapSeat"
       @off="session.busTapOff"
-      @undo="session.busUndo"
-      @reset-stop="session.busResetStop"
       @depart="session.busDepart"
-      @helper="session.busHelper"
-      @speak="session.busSpeak"
+      @helper="session.busHelp"
     />
 
     <bus-complete-view
@@ -193,11 +205,24 @@ onUnmounted(() => {
 
 .gear,
 .switch {
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: 56px;
+  min-width: 56px;
+  padding: 6px 10px;
   border: 3px solid var(--line);
   border-radius: 14px;
   background: var(--paper);
   font-weight: 800;
+}
+
+.switch svg {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.math {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
 }
 </style>

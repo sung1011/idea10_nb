@@ -14,7 +14,6 @@ defineProps<{
       <circle cx="9" cy="9" r="6" fill="#fff4e4" stroke="#3b2a1a" stroke-width="2" />
     </svg>
     <animal-face :kind="kind" :tint="tint" :size="72" />
-    <p>车票</p>
   </div>
 </template>
 
@@ -37,11 +36,6 @@ defineProps<{
   position: absolute;
   top: 8px;
   right: 10px;
-}
-
-p {
-  margin: 4px 0 0;
-  font-weight: 800;
 }
 
 @keyframes pop {

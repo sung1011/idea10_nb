@@ -19,6 +19,12 @@ export type SpeakSynth = {
   speak(utterance: SpeakUtterance): void
 }
 
+const ZH_COUNT = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+
+export function zhCount(value: number): string {
+  return ZH_COUNT[value] ?? String(value)
+}
+
 export function pickZhVoice<T extends SpeakVoice>(voices: T[]): T | undefined {
   return voices.find((voice) => voice.lang.toLowerCase().startsWith('zh'))
 }

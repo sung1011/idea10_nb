@@ -5,7 +5,6 @@ import {
   helperLines,
   isValidTrip,
   makeBusTrip,
-  stationTaskText,
 } from './busRoute'
 
 describe('坐车路线', () => {
@@ -49,10 +48,10 @@ describe('坐车路线', () => {
     expect(foundExtra).toBe(true)
   })
 
-  it('站牌文案和小帮手差额', () => {
-    expect(stationTaskText('花园', 6)).toBe('花园站。车上要有 6 只小动物。')
-    expect(helperLines(4, 6).text).toContain('还差 2')
-    expect(helperLines(8, 6).text).toContain('要下去 2')
+  it('辅助数字只给目标人数，不把差额写成句子', () => {
+    expect(helperLines(4, 6).current).toBe(4)
+    expect(helperLines(4, 6).target).toBe(6)
     expect(helperLines(4, 6).empty).toBe(6)
+    expect(helperLines(4, 6).delta).toBe(2)
   })
 })

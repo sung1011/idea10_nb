@@ -14,9 +14,9 @@ import {
   undoLast,
   type BusPlay,
 } from '../logic/busMove'
-import { makeBusTrip, stationTaskText } from '../logic/busRoute'
+import { makeBusTrip } from '../logic/busRoute'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
-import { speakChinese, wrapBrowserSynth, type SpeakSynth } from '../logic/speakTask'
+import { speakChinese, wrapBrowserSynth, zhCount, type SpeakSynth } from '../logic/speakTask'
 import {
   browserStorage,
   DEFAULT_SAVE,
@@ -54,7 +54,6 @@ export type AppState = {
   settingsOpenedView: View | null
   stickerEmoji: string
   bus: BusPlay | null
-  speakFail: string
 }
 
 export function hasRoundProgress(state: AppState): boolean {
@@ -130,7 +129,6 @@ export function createAppSession(
     settingsOpenedView: null,
     stickerEmoji: STICKERS[0],
     bus: null,
-    speakFail: '',
   })
 
   function clearBusTimer() {
@@ -222,7 +220,7 @@ export function createAppSession(
   function startBus() {
     clearBusTimer()
     state.bus = createBusPlay(makeBusTrip(rng))
-    state.speakFail = ''
+    cancelSpeech()
     state.view = 'bus'
   }
 
@@ -276,7 +274,12 @@ export function createAppSession(
     }
   }
 
+  function cancelSpeech() {
+    synthOf()?.cancel()
+  }
+
   function openSettings() {
+    cancelSpeech()
     flushBusMove()
     if (state.view !== 'settings') {
       state.settingsOpenedView = state.view
@@ -328,6 +331,7 @@ export function createAppSession(
   }
 
   function openPractice() {
+    cancelSpeech()
     flushBusMove()
     if (state.settled) {
       state.view = 'complete'
@@ -363,7 +367,7 @@ export function createAppSession(
     state.stats = { ...DEFAULT_SAVE }
     state.resetConfirming = false
     state.bus = null
-    state.speakFail = ''
+    cancelSpeech()
     startRound(DEFAULT_SAVE.mode)
   }
 
@@ -447,22 +451,26 @@ export function createAppSession(
     })
   }
 
-  function busSpeak() {
+  function busSpeakNumber() {
     const play = state.bus
-    if (!play || play.settled) return
-    const station = currentStation(play)
-    const result = speakChinese({
-      text: stationTaskText(station.name, station.target),
+    if (!play || play.settled || !play.helperOpen) return
+    speakChinese({
+      text: zhCount(currentStation(play).target),
       synth: synthOf(),
-      onerror: () => {
-        state.speakFail = '读不出来，看站牌'
-      },
     })
-    state.speakFail = result.ok ? '' : '读不出来，看站牌'
+  }
+
+  function busHelp() {
+    withBus((play) => {
+      toggleHelper(play)
+    })
+    if (state.bus?.helperOpen) busSpeakNumber()
+    else cancelSpeech()
   }
 
   function dispose() {
     clearBusTimer()
+    cancelSpeech()
   }
 
   return {
@@ -488,8 +496,10 @@ export function createAppSession(
     busUndo,
     busResetStop,
     busHelper,
+    busHelp,
     busDepart,
-    busSpeak,
+    busSpeakNumber,
+    cancelSpeech,
     flushBusMove,
     dispose,
   }

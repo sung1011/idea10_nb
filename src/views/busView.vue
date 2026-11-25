@@ -1,123 +1,169 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, watch } from 'vue'
 import busCabin from '../components/busCabin.vue'
 import animalFace from '../components/animalFace.vue'
-import { helperLines, stationTaskText, STOP_NAMES } from '../logic/busRoute'
-import { currentStation, onboardCount, type BusPlay } from '../logic/busMove'
+import countHelp from '../components/countHelp.vue'
+import stopMark from '../components/stopMark.vue'
+import { STOP_NAMES } from '../logic/busRoute'
+import {
+  currentStation,
+  errorCue,
+  helpSlots,
+  seatKind,
+  type BusPlay,
+} from '../logic/busMove'
 
 const props = defineProps<{
   play: BusPlay
-  speakFail: string
+  reducedMotion: boolean
 }>()
 
 const emit = defineEmits<{
   wait: [id: string]
   seat: [index: number]
   off: [id: string]
-  undo: []
-  resetStop: []
   depart: []
   helper: []
-  speak: []
 }>()
 
-function station() {
-  return currentStation(props.play)
-}
+const station = computed(() => currentStation(props.play))
+const cue = computed(() => errorCue(props.play))
+const kinds = computed(() => props.play.seats.map((_, index) => seatKind(props.play, index)))
+const mascot = computed(
+  () =>
+    props.play.seats.find((seat) => seat) ??
+    props.play.waiting[0] ??
+    props.play.offArea[0] ??
+    props.play.trip.initialOnboard[0]!,
+)
+const showBoardGesture = computed(
+  () => !props.reducedMotion && station.value.kind === 'board' && !props.play.shownBoardGesture,
+)
+const showAlightGesture = computed(
+  () => !props.reducedMotion && station.value.kind === 'alight' && !props.play.shownAlightGesture,
+)
+const arrowDown = computed(() => cue.value !== 'board-back' && cue.value !== 'alight-back')
 
-function task() {
-  const stop = station()
-  return stationTaskText(stop.name, stop.target)
-}
-
-function helper() {
-  return helperLines(onboardCount(props.play.seats), station().target).text
-}
+let gestureTimer = 0
+watch(
+  () => station.value.kind,
+  (kind) => {
+    if (gestureTimer) window.clearTimeout(gestureTimer)
+    if (props.reducedMotion) {
+      if (kind === 'board') props.play.shownBoardGesture = true
+      else props.play.shownAlightGesture = true
+      return
+    }
+    gestureTimer = window.setTimeout(() => {
+      if (kind === 'board') props.play.shownBoardGesture = true
+      else props.play.shownAlightGesture = true
+    }, 800)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  if (gestureTimer) window.clearTimeout(gestureTimer)
+})
 </script>
 
 <template>
-  <section class="bus">
+  <section class="bus" :data-cue="cue" :data-kind="station.kind">
     <ol class="route" aria-label="路线">
-      <li
-        v-for="(name, index) in STOP_NAMES"
-        :key="name"
-        :class="{ on: index === play.stationIndex, done: index < play.stationIndex }"
-      >
-        {{ name }}
+      <li v-for="(name, index) in STOP_NAMES" :key="name">
+        <stop-mark :index="index" :current="index === play.stationIndex" :done="index < play.stationIndex" :label="name" />
       </li>
     </ol>
 
-    <div class="sign">
-      <p>{{ task() }}</p>
-      <button type="button" class="horn" aria-label="朗读任务" @click="emit('speak')">喇叭</button>
-    </div>
-    <p v-if="speakFail" class="nudge">{{ speakFail }}</p>
-
-    <div v-if="station().kind === 'board'" class="yard">
-      <p>候车</p>
-      <div class="row">
-        <button
-          v-for="animal in play.waiting"
-          :key="animal.id"
-          type="button"
-          class="critter"
-          :data-waiting="animal.id"
-          aria-label="候车小动物"
-          @click="emit('wait', animal.id)"
-        >
-          <animal-face :kind="animal.kind" :tint="animal.tint" />
-        </button>
-      </div>
-    </div>
-    <p v-else class="yard-note">本站下车</p>
-
-    <bus-cabin :seats="play.seats" :moving="play.moving" @seat="emit('seat', $event)" />
-
-    <div v-if="station().kind === 'alight' && play.offArea.length" class="yard">
-      <p>刚下车</p>
-      <div class="row">
-        <button
-          v-for="animal in play.offArea"
-          :key="animal.id"
-          type="button"
-          class="critter"
-          :data-off="animal.id"
-          aria-label="刚下车的小动物"
-          @click="emit('off', animal.id)"
-        >
-          <animal-face :kind="animal.kind" :tint="animal.tint" />
-        </button>
-      </div>
-    </div>
-
-    <p v-if="play.feedback === 'few'" class="nudge">少了</p>
-    <p v-else-if="play.feedback === 'many'" class="nudge">多了</p>
-
-    <button type="button" class="ghost" @click="emit('helper')">
-      {{ play.helperOpen ? '收起小帮手' : '小帮手' }}
-    </button>
-    <p v-if="play.helperOpen" class="helper">{{ helper() }}</p>
-
-    <div class="actions">
-      <button type="button" class="ghost" :disabled="play.moving || play.stack.length === 0" @click="emit('undo')">
-        撤回
-      </button>
-      <button type="button" class="ghost" :disabled="play.moving" @click="emit('resetStop')">本站重来</button>
+    <div v-if="station.kind === 'board'" class="yard" data-yard="wait">
       <button
+        v-for="animal in play.waiting"
+        :key="animal.id"
         type="button"
-        class="go"
-        :disabled="play.moving || play.departLocked"
-        @click="emit('depart')"
+        class="critter"
+        :class="{ pulse: cue === 'board-more' }"
+        :data-waiting="animal.id"
+        aria-label="候车小动物"
+        @click="emit('wait', animal.id)"
       >
-        发车
+        <animal-face :kind="animal.kind" :tint="animal.tint" />
       </button>
     </div>
+
+    <div
+      v-if="station.kind === 'board'"
+      class="arrow"
+      :class="{ down: arrowDown, up: !arrowDown, pulse: cue === 'board-more' || cue === 'board-back' }"
+      :data-arrow="arrowDown ? 'down' : 'up'"
+      aria-hidden="true"
+    >
+      <span v-if="showBoardGesture" class="ghost">
+        <animal-face kind="cat" tint="gold" :size="28" />
+      </span>
+    </div>
+
+    <bus-cabin
+      :seats="play.seats"
+      :kinds="kinds"
+      :moving="play.moving"
+      :target="station.target"
+      :mascot="mascot"
+      :cue="cue"
+      @seat="emit('seat', $event)"
+      @target="emit('helper')"
+    />
+
+    <count-help v-if="play.helperOpen" :slots="helpSlots(play)" :target="station.target" />
+
+    <div
+      v-if="station.kind === 'alight'"
+      class="arrow"
+      :class="{ down: arrowDown, up: !arrowDown, pulse: cue === 'alight-more' || cue === 'alight-back' }"
+      :data-arrow="arrowDown ? 'down' : 'up'"
+      aria-hidden="true"
+    >
+      <span v-if="showAlightGesture" class="ghost down">
+        <animal-face kind="rabbit" tint="coral" :size="28" />
+      </span>
+    </div>
+
+    <div v-if="station.kind === 'alight'" class="pad" data-yard="off" aria-label="下车处">
+      <button
+        v-for="animal in play.offArea"
+        :key="animal.id"
+        type="button"
+        class="critter"
+        :class="{ pulse: cue === 'alight-back' }"
+        :data-off="animal.id"
+        aria-label="刚下车的小动物"
+        @click="emit('off', animal.id)"
+      >
+        <animal-face :kind="animal.kind" :tint="animal.tint" />
+      </button>
+    </div>
+
+    <button
+      type="button"
+      class="wheel"
+      :disabled="play.moving || play.departLocked"
+      aria-label="发车"
+      data-depart
+      @click="emit('depart')"
+    >
+      <svg viewBox="0 0 72 72" aria-hidden="true">
+        <circle cx="36" cy="36" r="30" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="4" />
+        <circle cx="36" cy="36" r="12" fill="#fffdf8" stroke="#3b2a1a" stroke-width="3" />
+        <path d="M36 8 v16 M36 48 v16 M8 36 h16 M48 36 h16" stroke="#3b2a1a" stroke-width="4" />
+        <polygon points="52,20 64,36 52,32" fill="#fffdf8" stroke="#3b2a1a" stroke-width="2" />
+      </svg>
+    </button>
   </section>
 </template>
 
 <style scoped>
 .bus {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  justify-items: stretch;
 }
 
 .route {
@@ -129,105 +175,119 @@ function helper() {
   list-style: none;
 }
 
-.route li {
-  min-height: 44px;
-  display: grid;
-  place-items: center;
-  padding: 4px 2px;
-  border: 3px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-align: center;
-}
-
-.route li.on {
-  background: var(--teal);
-  color: #fff;
-}
-
-.route li.done {
-  background: #cfeee9;
-}
-
-.sign {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 3px solid var(--line);
-  border-radius: 16px;
-  background: var(--paper);
-  font-weight: 800;
-}
-
-.sign p,
-.nudge,
-.helper,
-.yard p,
-.yard-note {
-  margin: 0;
-}
-
-.horn,
-.ghost,
-.go,
-.critter {
-  min-height: 48px;
-  border: 3px solid var(--line);
-  border-radius: 14px;
-  background: var(--paper);
-  font-weight: 800;
-}
-
-.horn,
-.critter {
-  min-width: 48px;
-  padding: 4px;
-}
-
-.nudge {
-  color: var(--coral);
-  font-weight: 800;
-  text-align: center;
-}
-
-.helper {
-  padding: 10px 12px;
-  border: 3px solid var(--line);
-  border-radius: 16px;
-  background: var(--paper);
-  font-weight: 700;
-}
-
-.yard p,
-.yard-note {
-  font-weight: 800;
-  color: var(--muted);
-}
-
-.row {
+.yard,
+.pad {
+  min-height: 56px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border: 3px dashed var(--line);
+  border-radius: 16px;
+  background: var(--paper);
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.pad {
+  background: #fff3d6;
 }
 
-.go {
-  grid-column: 1 / -1;
+.critter {
+  min-width: 56px;
   min-height: 56px;
-  background: var(--teal);
-  color: #fff;
+  padding: 4px;
+  border: 3px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
 }
 
-button:disabled {
+.arrow {
+  position: relative;
+  height: 28px;
+  justify-self: center;
+}
+
+.arrow.down::after,
+.arrow.up::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0 auto;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+}
+
+.arrow.down::after {
+  border-top: 22px solid var(--ink);
+}
+
+.arrow.up::after {
+  border-bottom: 22px solid var(--ink);
+}
+
+.ghost {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  pointer-events: none;
+  animation: slide 0.8s ease 1;
+}
+
+.ghost.down {
+  animation-name: drop;
+}
+
+.pulse,
+.critter.pulse {
+  animation: pulse 0.5s ease infinite;
+}
+
+.wheel {
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  min-height: 72px;
+  justify-self: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.wheel svg {
+  width: 72px;
+  height: 72px;
+}
+
+.wheel:disabled {
   opacity: 0.4;
+}
+
+@keyframes slide {
+  from {
+    transform: translate(-50%, -18px);
+    opacity: 0.85;
+  }
+  to {
+    transform: translate(-50%, 18px);
+    opacity: 0;
+  }
+}
+
+@keyframes drop {
+  from {
+    transform: translate(-50%, -12px);
+    opacity: 0.85;
+  }
+  to {
+    transform: translate(-50%, 16px);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    transform: translateY(-3px);
+  }
 }
 </style>

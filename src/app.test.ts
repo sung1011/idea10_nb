@@ -4,8 +4,8 @@ import app from './app.vue'
 import { STORAGE_KEY } from './storage/appStorage'
 
 const newerRemote = [
-  { id: 'v0.6.0', version: '0.6.0', date: '2026-11-28', summary: '测试用更新' },
-  { id: 'v0.5.0', version: '0.5.0', date: '2026-11-25', summary: '坐车' },
+  { id: 'v0.7.0', version: '0.7.0', date: '2026-11-28', summary: '测试用更新' },
+  { id: 'v0.6.0', version: '0.6.0', date: '2026-11-25', summary: '图形坐车' },
 ]
 
 function mountApp() {
@@ -19,6 +19,12 @@ function mountApp() {
 function button(el: HTMLElement, label: string) {
   const found = [...el.querySelectorAll('button')].find((node) => node.textContent?.trim() === label)
   if (!found) throw new Error(`missing button ${label}`)
+  return found
+}
+
+function byAria(el: HTMLElement, label: string) {
+  const found = el.querySelector(`[aria-label="${label}"]`) as HTMLButtonElement | null
+  if (!found) throw new Error(`missing aria ${label}`)
   return found
 }
 
@@ -89,7 +95,7 @@ describe('界面响应', () => {
     const { el, vueApp } = mountApp()
     await flush()
     expect(el.textContent).toContain('更新')
-    expect(el.textContent).toContain('0.6.0')
+    expect(el.textContent).toContain('0.7.0')
     expect(el.querySelector('.popover')).toBeTruthy()
     expect(el.querySelector('.sticky')?.textContent).toContain('更新')
     expect([...el.querySelectorAll('button')].some((node) => node.textContent?.trim() === '3')).toBe(true)
@@ -171,12 +177,15 @@ describe('界面响应', () => {
     await nextTick()
     button(el, '3').click()
     await nextTick()
-    button(el, '坐车').click()
+    byAria(el, '坐车').click()
     await nextTick()
-    expect(el.textContent).toContain('发车')
+    expect(el.querySelector('[data-depart]')).toBeTruthy()
     expect(el.querySelectorAll('[data-seat]').length).toBe(10)
-    expect(el.textContent).toMatch(/家门口|花园/)
-    button(el, '算术').click()
+    expect(el.querySelectorAll('[data-stop]').length).toBe(5)
+    expect(el.querySelector('[data-target]')).toBeTruthy()
+    const child = el.querySelector('.bus')?.textContent ?? ''
+    expect(child).not.toMatch(/发车|候车|少了|小帮手|喇叭|撤回|本站重来/)
+    byAria(el, '算术').click()
     await nextTick()
     expect(el.querySelector('.blank')?.textContent).toBe('3')
     button(el, '设置').click()
@@ -205,7 +214,7 @@ describe('界面响应', () => {
     }))
     const { el, vueApp } = mountApp()
     await flush()
-    button(el, '坐车').click()
+    byAria(el, '坐车').click()
     await nextTick()
     const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement | null
     const filled = el.querySelector('[data-animal]:not([data-animal=""])') as HTMLButtonElement | null
@@ -224,14 +233,20 @@ function occupiedSeats(el: HTMLElement) {
 }
 
 async function playOneStop(el: HTMLElement) {
-  const target = Number(/车上要有 (\d+) 只/.exec(el.textContent ?? '')?.[1])
+  const target = Number(el.querySelector('[data-target]')?.getAttribute('data-target'))
   if (!Number.isFinite(target)) throw new Error('no target')
-  const board = el.textContent?.includes('候车')
+  const board = el.querySelector('[data-kind="board"]')
   if (board) {
     while (occupiedSeats(el) < target) {
       const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement | null
       if (!waiting) throw new Error('no waiting')
       waiting.click()
+      await nextTick()
+    }
+    while (occupiedSeats(el) > target) {
+      const fresh = el.querySelector('[data-kind="fresh"]') as HTMLButtonElement | null
+      if (!fresh) throw new Error('no fresh')
+      fresh.click()
       await nextTick()
     }
   } else {
@@ -243,8 +258,16 @@ async function playOneStop(el: HTMLElement) {
       seat.click()
       await nextTick()
     }
+    while (occupiedSeats(el) < target) {
+      const off = el.querySelector('[data-off]') as HTMLButtonElement | null
+      if (!off) throw new Error('no off')
+      off.click()
+      await nextTick()
+    }
   }
-  button(el, '发车').click()
+  const depart = el.querySelector('[data-depart]') as HTMLButtonElement | null
+  if (!depart) throw new Error('no depart')
+  depart.click()
   await nextTick()
 }
 
@@ -283,18 +306,23 @@ describe('坐车界面整局', () => {
   it('故意错一次、提示一次后走完五站，统计只加一次', async () => {
     const { el, vueApp } = mountApp()
     await nextTick()
-    button(el, '坐车').click()
+    byAria(el, '坐车').click()
     await nextTick()
-    button(el, '发车').click()
+    const depart = el.querySelector('[data-depart]') as HTMLButtonElement
+    depart.click()
     await nextTick()
-    expect(el.textContent).toMatch(/少了|多了/)
-    button(el, '小帮手').click()
+    expect(el.querySelector('[data-cue="board-more"], [data-cue="board-back"], [data-cue="alight-more"], [data-cue="alight-back"]')).toBeTruthy()
+    expect(el.querySelector('.bus')?.textContent).not.toMatch(/少了|多了/)
+    const targetBtn = el.querySelector('[data-target]') as HTMLButtonElement
+    targetBtn.click()
     await nextTick()
-    expect(el.textContent).toContain('空位')
+    expect(el.querySelector('[data-help]')).toBeTruthy()
+    expect(el.querySelector('[data-help-slot]')).toBeTruthy()
     for (let i = 0; i < 5; i += 1) {
       await playOneStop(el)
     }
-    expect(el.textContent).toContain('车票')
+    expect(el.querySelector('[data-again]')).toBeTruthy()
+    expect(el.textContent).not.toContain('车票')
     button(el, '设置').click()
     await nextTick()
     expect(el.textContent).toContain('坐车次数 1')
@@ -305,4 +333,64 @@ describe('坐车界面整局', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').busTripsCompleted).toBe(1)
   })
 })
+
+describe('坐车动画与撤回', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.body.innerHTML = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => newerRemote,
+      })),
+    )
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+    localStorage.clear()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('点刚上车的动物能退回候车', async () => {
+    const { el, vueApp } = mountApp()
+    await nextTick()
+    byAria(el, '坐车').click()
+    await nextTick()
+    if (!el.querySelector('[data-kind="board"]')) {
+      vueApp.unmount()
+      return
+    }
+    const before = occupiedSeats(el)
+    const waiting = el.querySelector('[data-waiting]') as HTMLButtonElement
+    waiting.click()
+    await nextTick()
+    expect(occupiedSeats(el)).toBe(before + 1)
+    const fresh = el.querySelector('[data-kind="fresh"]') as HTMLButtonElement
+    fresh.click()
+    await nextTick()
+    expect(occupiedSeats(el)).toBe(before)
+    vueApp.unmount()
+  })
+
+  it('正常动画发车后会锁住并过站', async () => {
+    const { el, vueApp } = mountApp()
+    await nextTick()
+    byAria(el, '坐车').click()
+    await nextTick()
+    const firstTarget = el.querySelector('[data-target]')?.getAttribute('data-target')
+    await playOneStop(el)
+    const wheel = el.querySelector('[data-depart]') as HTMLButtonElement
+    expect(wheel.disabled || el.querySelector('.moving')).toBeTruthy()
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    await nextTick()
+    const laterTarget = el.querySelector('[data-target]')?.getAttribute('data-target')
+    const again = el.querySelector('[data-again]')
+    expect(Boolean(again) || laterTarget !== firstTarget || occupiedSeats(el) !== Number(firstTarget)).toBe(true)
+    vueApp.unmount()
+  })
+})
+
 

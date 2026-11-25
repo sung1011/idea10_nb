@@ -14,10 +14,20 @@ const emit = defineEmits<{
 
 <template>
   <section class="complete">
-    <h1>到野餐地啦</h1>
-    <p class="copy">送你一张车票贴纸</p>
     <ticket-sticker :kind="kind" :tint="tint" />
-    <button type="button" class="again" @click="emit('again')">再玩一局</button>
+    <button type="button" class="again" aria-label="再玩一局" data-again @click="emit('again')">
+      <svg viewBox="0 0 72 72" aria-hidden="true">
+        <circle cx="36" cy="36" r="30" fill="#2a9d8f" stroke="#3b2a1a" stroke-width="4" />
+        <path
+          d="M48 36 a12 12 0 1 1 -8 -11"
+          fill="none"
+          stroke="#fffdf8"
+          stroke-width="6"
+          stroke-linecap="round"
+        />
+        <polygon points="36,14 48,18 38,26" fill="#fffdf8" stroke="#3b2a1a" stroke-width="2" />
+      </svg>
+    </button>
   </section>
 </template>
 
@@ -25,32 +35,22 @@ const emit = defineEmits<{
 .complete {
   display: grid;
   justify-items: center;
-  text-align: center;
   padding-top: 12px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.copy {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-weight: 700;
+  gap: 8px;
 }
 
 .again {
-  min-height: 56px;
-  min-width: 220px;
-  margin-top: 8px;
-  padding: 12px 20px;
-  border: 3px solid var(--line);
-  border-radius: 18px;
-  background: var(--teal);
-  color: #fff;
-  font-size: 1.2rem;
-  font-weight: 800;
-  box-shadow: 0 4px 0 var(--line);
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  min-height: 72px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.again svg {
+  width: 72px;
+  height: 72px;
 }
 </style>

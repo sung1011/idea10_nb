@@ -397,7 +397,7 @@ describe('坐车会话', () => {
     expect(session.state.view).toBe('bus')
   })
 
-  it('无语音与 onerror 都出看站牌；刷新丢中途局但保留已存统计', () => {
+  it('无语音朗读静默失败；刷新丢中途局但保留已存统计', () => {
     const storage = memoryStorage()
     const session = createAppSession({
       storage,
@@ -406,8 +406,9 @@ describe('坐车会话', () => {
       synth: null,
     })
     session.openBus()
-    session.busSpeak()
-    expect(session.state.speakFail).toContain('读不出来')
+    session.busHelp()
+    expect(session.state.bus?.helperOpen).toBe(true)
+    expect(JSON.stringify(session.state)).not.toContain('读不出来')
     while (!session.state.bus?.settled) passCurrentStop(session)
     expect(session.state.stats.busTripsCompleted).toBe(1)
     const again = createAppSession({ storage, rng: mulberry32(36), reducedMotion: () => true })

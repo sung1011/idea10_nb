@@ -32,6 +32,8 @@ export type BusPlay = {
   moving: boolean
   settled: boolean
   accounted: boolean
+  shownBoardGesture: boolean
+  shownAlightGesture: boolean
 }
 
 export function emptySeats(): SeatMap {
@@ -105,6 +107,8 @@ export function createBusPlay(trip: BusTrip): BusPlay {
     moving: false,
     settled: false,
     accounted: false,
+    shownBoardGesture: false,
+    shownAlightGesture: false,
   }
   snapshotStation(play)
   return play
@@ -241,6 +245,40 @@ export function arriveNext(play: BusPlay): 'next' | 'done' {
   play.stationIndex += 1
   snapshotStation(play)
   return 'next'
+}
+
+export type ErrorCue = 'board-more' | 'board-back' | 'alight-back' | 'alight-more' | ''
+export type SeatKind = 'empty' | 'kept' | 'fresh' | 'offable'
+export type HelpSlot = { kind: 'filled' | 'missing' | 'extra'; animal: Animal | null }
+
+export function seatKind(play: BusPlay, index: number): SeatKind {
+  const animal = play.seats[index]
+  if (!animal) return 'empty'
+  const baseline = play.snapshotSeats[index]?.id === animal.id
+  if (stationKind(play) === 'board') return baseline ? 'kept' : 'fresh'
+  return 'offable'
+}
+
+export function errorCue(play: BusPlay): ErrorCue {
+  if (play.feedback !== 'few' && play.feedback !== 'many') return ''
+  if (stationKind(play) === 'board') {
+    return play.feedback === 'few' ? 'board-more' : 'board-back'
+  }
+  return play.feedback === 'few' ? 'alight-back' : 'alight-more'
+}
+
+export function helpSlots(play: BusPlay): HelpSlot[] {
+  const target = currentStation(play).target
+  const animals = play.seats.filter((seat): seat is Animal => seat != null)
+  const slots: HelpSlot[] = []
+  for (let i = 0; i < target; i += 1) {
+    const animal = animals[i]
+    slots.push(animal ? { kind: 'filled', animal } : { kind: 'missing', animal: null })
+  }
+  for (let i = target; i < animals.length; i += 1) {
+    slots.push({ kind: 'extra', animal: animals[i]! })
+  }
+  return slots
 }
 
 export function hasBusProgress(play: BusPlay | null | undefined): boolean {
