@@ -45,7 +45,7 @@ function onChange(event: Event) {
 
 .play {
   min-height: 56px;
-  min-width: 7.2rem;
+  min-width: 9rem;
   padding: 6px 28px 6px 12px;
   border: 3px solid var(--line);
   border-radius: 14px;

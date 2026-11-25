@@ -10,7 +10,7 @@
 - `src/logic/stickerPool.ts`：25 个 ID 洗牌袋，发完才重洗；`public/stickers/sticker-*.svg` 独立资源，经 `base` 引用，不内嵌、不进 zip
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
 - `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板状态机；`switchPlay` 三玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确 `level`/`cheer` 快照已到下一题 idle，错误 `hold` 快照为原题 idle；切走会 flush 动画收尾；`prefers-reduced-motion` 跳过回平等待但仍显示静态对勾/箭头并停留 1000/800ms
-- `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上玩法下拉「算式 / 坐车 / 跷跷板」；设置页无下拉
+- `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上原生 select，选项「➕ 算式 / 🚌 坐车 / ⚖️ 跷跷板」，value 仍是 practice/bus/seesaw；设置页无下拉，仍显示静态「设置」
 - `src/logic/seesawProblem.ts` / `seesawMove.ts`：复用 `makeRound`，□=`b`；左盘开题=`a`（存档字段仍叫 `play.right`，idle 原点必须是 a），右盘固定=`answer`；确认后左盘整批 `a±□`；倾角 `(right-left)*7` 夹在 ±28°；正确 `level` 420ms 回平后 `cheer` 1000ms 再下一题，错误停实际倾角 `hold` 800ms 再还原；磁盘快照把 `level`/`cheer` 收成下一题 idle，`hold` 收成原题 idle；v3 旧档不改键、不升 version
 - `src/logic/busRoute.ts` / `busMove.ts`：可解 10 题、当站撤回、发车少/多、四类错误方向；正确发车 `leave` 420ms 驶离后换题，再 `enter` 420ms 驶入；第 10 题只驶出；`prefers-reduced-motion` 用 360ms 车灯闪而不位移
 - 坐车、跷跷板进度与算术共用 `progressLabel.vue`，文案「第 x / 10 题」；不再用地标路线条

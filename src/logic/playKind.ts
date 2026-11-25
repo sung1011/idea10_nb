@@ -1,9 +1,9 @@
 export type PlayKind = 'practice' | 'bus' | 'seesaw'
 
 export const PLAY_OPTIONS: { id: PlayKind; label: string }[] = [
-  { id: 'practice', label: '算式' },
-  { id: 'bus', label: '坐车' },
-  { id: 'seesaw', label: '跷跷板' },
+  { id: 'practice', label: '➕ 算式' },
+  { id: 'bus', label: '🚌 坐车' },
+  { id: 'seesaw', label: '⚖️ 跷跷板' },
 ]
 
 export function playKindOf(view: string): PlayKind | null {
