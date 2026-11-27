@@ -137,14 +137,25 @@ export function makeRound(
   count = ROUND_SIZE,
   rng: () => number = Math.random,
   range = RANGE_MAX,
+  allowZero = true,
 ): Problem[] {
   const max = normalizeRange(range)
+  const adds = allowZero ? allAddProblems(max) : allAddProblems(max).filter((item) => !isZeroRelated(item))
+  const subs = allowZero ? allSubProblems(max) : allSubProblems(max).filter((item) => !isZeroRelated(item))
   if (mode === 'add' || mode === 'sub') {
-    return sampleWithZeroCap(allProblems(mode, max), count, rng)
+    const pool = mode === 'add' ? adds : subs
+    return allowZero ? sampleWithZeroCap(pool, count, rng) : sampleUnique(pool, count, rng)
+  }
+  if (!allowZero) {
+    const addPick = sampleUnique(adds, 1, rng)[0]!
+    const subPick = sampleUnique(subs, 1, rng)[0]!
+    const restPool = [...adds, ...subs].filter(
+      (item) => problemKey(item) !== problemKey(addPick) && problemKey(item) !== problemKey(subPick),
+    )
+    const rest = sampleUnique(restPool, count - 2, rng)
+    return shuffle([addPick, subPick, ...rest], rng)
   }
 
-  const adds = allAddProblems(max)
-  const subs = allSubProblems(max)
   const addPick = pickOnePreferNormal(adds, rng)
   const usedZero = isZeroRelated(addPick)
   const subSource = usedZero ? subs.filter((item) => !isZeroRelated(item)) : subs
@@ -154,6 +165,16 @@ export function makeRound(
   )
   const rest = sampleWithZeroCap(restPool, count - 2, rng, usedZero || isZeroRelated(subPick))
   return shuffle([addPick, subPick, ...rest], rng)
+}
+
+/** 坐车以外的图形玩法：10 以内且 a、b、得数都不为 0。 */
+export function makeNoZeroRound(
+  mode: Mode,
+  count = ROUND_SIZE,
+  rng: () => number = Math.random,
+  range = RANGE_MAX,
+): Problem[] {
+  return makeRound(mode, count, rng, range, false)
 }
 
 export function parseInput(raw: string): number | null {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ACKED_VERSION_KEY } from '../logic/appVersion'
-import { mulberry32, problemKey } from '../logic/makeProblem'
+import { isZeroRelated, mulberry32, problemKey, type Problem } from '../logic/makeProblem'
 import { currentStation, onboardCount } from '../logic/busMove'
 import { STATION_COUNT } from '../logic/busRoute'
 import { DEFAULT_SAVE, STORAGE_KEY, memoryStorage } from '../storage/appStorage'
@@ -1827,6 +1827,94 @@ describe('算式范围设置', () => {
     expect(session.state.seesaw?.problems.every(withinTen)).toBe(true)
     session.switchPlay('bowl')
     expect(session.state.bowl?.problems.every(withinTen)).toBe(true)
+  })
+})
+
+describe('图形玩法新题不含 0', () => {
+  const oldZeros = [
+    { a: 5, b: 5, op: '-' as const, answer: 0 },
+    { a: 0, b: 3, op: '+' as const, answer: 3 },
+    { a: 4, b: 0, op: '+' as const, answer: 4 },
+    { a: 2, b: 3, op: '+' as const, answer: 5 },
+    { a: 8, b: 8, op: '-' as const, answer: 0 },
+    { a: 1, b: 2, op: '+' as const, answer: 3 },
+    { a: 6, b: 0, op: '-' as const, answer: 6 },
+    { a: 7, b: 2, op: '-' as const, answer: 5 },
+    { a: 3, b: 1, op: '-' as const, answer: 2 },
+    { a: 9, b: 1, op: '+' as const, answer: 10 },
+  ]
+
+  function noneZero(items: Problem[]) {
+    return items.every((item) => item.a > 0 && item.b > 0 && item.answer > 0 && !isZeroRelated(item))
+  }
+
+  it('坐车、跷跷板、小老鼠新开局 a、b、得数都不是 0；算式仍可出 0', () => {
+    let sawPracticeZero = false
+    for (let seed = 1; seed <= 80; seed += 1) {
+      const session = createAppSession({
+        storage: memoryStorage(),
+        rng: mulberry32(seed),
+        reducedMotion: () => true,
+      })
+      if (session.state.problems.some(isZeroRelated)) sawPracticeZero = true
+      session.switchPlay('seesaw')
+      expect(noneZero(session.state.seesaw!.problems)).toBe(true)
+      expect(session.state.seesaw!.problems.some((item) => item.op === '+')).toBe(true)
+      expect(session.state.seesaw!.problems.some((item) => item.op === '-')).toBe(true)
+      session.switchPlay('bowl')
+      expect(noneZero(session.state.bowl!.problems)).toBe(true)
+      expect(session.state.bowl!.problems.some((item) => item.op === '+')).toBe(true)
+      expect(session.state.bowl!.problems.some((item) => item.op === '-')).toBe(true)
+      session.switchPlay('bus')
+      const trip = session.state.bus!.trip
+      expect(trip.startCount).toBeGreaterThan(0)
+      let current = trip.startCount
+      for (const station of trip.stations) {
+        expect(current).toBeGreaterThan(0)
+        expect(station.target).toBeGreaterThan(0)
+        expect(station.target).not.toBe(current)
+        current = station.target
+      }
+    }
+    expect(sawPracticeZero).toBe(true)
+  })
+
+  it('进行中旧局含 0 的题刷新后仍在，不会被改写', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(401),
+      reducedMotion: () => true,
+    })
+    session.switchPlay('seesaw')
+    session.state.seesaw!.problems = oldZeros.map((item) => ({ ...item }))
+    session.state.seesaw!.right = oldZeros[0]!.a
+    session.seesawTapDigit('5')
+    session.switchPlay('bowl')
+    session.state.bowl!.problems = oldZeros.map((item) => ({ ...item }))
+    session.bowlTapDigit('0')
+    const mid = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as {
+      play: { seesaw: { problems: typeof oldZeros }; bowl: { problems: typeof oldZeros } }
+    }
+    expect(mid.play.seesaw.problems[0]).toEqual(oldZeros[0])
+    expect(mid.play.bowl.problems[1]).toEqual(oldZeros[1])
+    const restored = createAppSession({
+      storage,
+      rng: mulberry32(402),
+      reducedMotion: () => true,
+    })
+    expect(restored.state.bowl?.problems).toEqual(oldZeros)
+    restored.switchPlay('seesaw')
+    expect(restored.state.seesaw?.problems).toEqual(oldZeros)
+    restored.seesawTapDigit('5')
+    const again = createAppSession({
+      storage,
+      rng: mulberry32(403),
+      reducedMotion: () => true,
+    })
+    expect(again.state.seesaw?.problems).toEqual(oldZeros)
+    again.switchPlay('bowl')
+    expect(again.state.bowl?.problems).toEqual(oldZeros)
   })
 })
 

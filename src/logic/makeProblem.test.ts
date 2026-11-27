@@ -7,6 +7,7 @@ import {
   allSubProblems,
   isCorrect,
   isZeroRelated,
+  makeNoZeroRound,
   makeRound,
   mulberry32,
   normalizeRange,
@@ -118,6 +119,43 @@ describe('一轮出题', () => {
     const a = makeRound('mix', ROUND_SIZE, mulberry32(99)).map(problemKey)
     const b = makeRound('mix', ROUND_SIZE, mulberry32(99)).map(problemKey)
     expect(a).toEqual(b)
+  })
+})
+
+describe('不含 0 的一轮', () => {
+  it('10 以内排除 0 后加减各 45 题，够一局 10 题', () => {
+    expect(allAddProblems().filter((item) => !isZeroRelated(item))).toHaveLength(45)
+    expect(allSubProblems().filter((item) => !isZeroRelated(item))).toHaveLength(45)
+  })
+
+  it('a、b、得数都不为 0，仍 10 题不重复，混合必含加减', () => {
+    for (const mode of ['add', 'sub', 'mix'] as const) {
+      for (let seed = 1; seed <= 80; seed += 1) {
+        const round = makeNoZeroRound(mode, ROUND_SIZE, mulberry32(seed * 13 + mode.length))
+        expect(round).toHaveLength(10)
+        expect(new Set(round.map(problemKey)).size).toBe(10)
+        expect(round.some(isZeroRelated)).toBe(false)
+        for (const item of round) {
+          expect(item.a).toBeGreaterThan(0)
+          expect(item.b).toBeGreaterThan(0)
+          expect(item.answer).toBeGreaterThan(0)
+        }
+        if (mode === 'mix') {
+          expect(round.some((item) => item.op === '+')).toBe(true)
+          expect(round.some((item) => item.op === '-')).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('默认 makeRound 仍可出 0，与不含 0 的一轮不是同一规则', () => {
+    let sawZero = false
+    for (let seed = 1; seed <= 80; seed += 1) {
+      if (makeRound('mix', ROUND_SIZE, mulberry32(seed)).some(isZeroRelated)) sawZero = true
+    }
+    expect(sawZero).toBe(true)
+    const same = makeNoZeroRound('mix', ROUND_SIZE, mulberry32(21))
+    expect(makeRound('mix', ROUND_SIZE, mulberry32(21), RANGE_MAX, false)).toEqual(same)
   })
 })
 

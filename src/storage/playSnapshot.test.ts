@@ -156,6 +156,7 @@ describe('parsePlay', () => {
     expect(parsed?.seesaw?.input).toBe('4')
     expect(parsed?.seesaw?.right).toBe(3)
     expect(parsed?.seesaw?.wrongOnce[0]).toBe(true)
+    expect(parsed?.seesaw?.problems[6]).toEqual({ a: 0, b: 2, op: '+', answer: 2 })
     const broken = JSON.parse(JSON.stringify(snapshot)) as { seesaw: { right: number } }
     broken.seesaw.right = 8
     expect(parsePlay(broken, 'mix')?.seesaw).toBeNull()

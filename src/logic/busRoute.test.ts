@@ -21,8 +21,12 @@ describe('坐车路线', () => {
       expect(trip.stations.some((station) => station.kind === 'board')).toBe(true)
       expect(trip.stations.some((station) => station.kind === 'alight')).toBe(true)
       let current = trip.startCount
+      expect(current).toBeGreaterThan(0)
       for (const station of trip.stations) {
-        expect(station.target).not.toBe(current)
+        const delta = station.target - current
+        expect(delta).not.toBe(0)
+        expect(current).toBeGreaterThan(0)
+        expect(station.target).toBeGreaterThan(0)
         expect(station.target).toBeGreaterThanOrEqual(1)
         expect(station.target).toBeLessThanOrEqual(10)
         current = station.target

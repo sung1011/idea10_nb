@@ -40,6 +40,7 @@ import {
 import { bowlTotal } from '../logic/bowlProblem'
 import {
   isCorrect,
+  makeNoZeroRound,
   makeRound,
   normalizeRange,
   practiceInputMaxLen,
@@ -310,7 +311,7 @@ export function createAppSession(
     const seesaw = state.seesaw ? seesawForDisk(state.seesaw) : null
     const bowl = pendingMode
       ? state.bowl
-        ? createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+        ? createBowlPlay(makeNoZeroRound(state.mode, ROUND_SIZE, rng))
         : null
       : state.bowl
         ? bowlForDisk(state.bowl)
@@ -493,7 +494,7 @@ export function createAppSession(
 
   function startSeesaw() {
     clearSeesawTimer()
-    state.seesaw = createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+    state.seesaw = createSeesawPlay(makeNoZeroRound(state.mode, ROUND_SIZE, rng))
     state.seesawSticker = ''
     cancelSpeech()
     state.view = 'seesaw'
@@ -567,7 +568,7 @@ export function createAppSession(
 
   function startBowl() {
     clearBowlTimer()
-    state.bowl = createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+    state.bowl = createBowlPlay(makeNoZeroRound(state.mode, ROUND_SIZE, rng))
     state.bowlSticker = ''
     cancelSpeech()
     state.view = 'bowl'
@@ -674,7 +675,7 @@ export function createAppSession(
     if (openedMode != null && openedMode !== state.mode) {
       clearBowlTimer()
       if (state.bowl) {
-        state.bowl = createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+        state.bowl = createBowlPlay(makeNoZeroRound(state.mode, ROUND_SIZE, rng))
         state.bowlSticker = ''
       }
       startRound(state.mode)
