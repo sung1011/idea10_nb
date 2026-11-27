@@ -106,28 +106,30 @@ function showInput() {
           stroke-linecap="round"
         />
       </svg>
-      <div class="bag-row">
-        <div class="sack" data-sack>
-          <svg class="sack-art" viewBox="0 0 72 64" aria-hidden="true">
-            <ellipse cx="36" cy="12" rx="18" ry="7" fill="#c9844a" stroke="#3b2a1a" stroke-width="2.4" />
-            <path
-              d="M16 14 L20 56 Q36 64 52 56 L56 14"
-              fill="#d9a066"
-              stroke="#3b2a1a"
-              stroke-width="2.6"
-              stroke-linejoin="round"
-            />
-            <path d="M22 24 q14 8 28 0" fill="none" stroke="#fff4e4" stroke-width="2" opacity="0.4" />
-            <path d="M27 8 q9 -8 18 0" fill="none" stroke="#3b2a1a" stroke-width="2.2" stroke-linecap="round" />
-          </svg>
-          <span v-if="!open" class="guess" aria-hidden="true">?</span>
-          <div v-if="open" class="inside" data-revealed :data-count="hidden">
-            <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" :tone="1" class="jumper" />
-          </div>
-        </div>
-        <p v-if="showInput()" class="eq" data-bag-input aria-live="polite">
+      <div class="sack" data-sack>
+        <svg class="sack-art" viewBox="0 0 72 64" aria-hidden="true">
+          <ellipse cx="36" cy="12" rx="18" ry="7" fill="#c9844a" stroke="#3b2a1a" stroke-width="2.4" />
+          <path
+            d="M16 14 L20 56 Q36 64 52 56 L56 14"
+            fill="#d9a066"
+            stroke="#3b2a1a"
+            stroke-width="2.6"
+            stroke-linejoin="round"
+          />
+          <path d="M22 24 q14 8 28 0" fill="none" stroke="#fff4e4" stroke-width="2" opacity="0.4" />
+          <path d="M27 8 q9 -8 18 0" fill="none" stroke="#3b2a1a" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+        <p
+          v-if="showInput()"
+          class="guess"
+          data-bag-input
+          aria-live="polite"
+        >
           <span class="blank">{{ input || '?' }}</span>
         </p>
+        <div v-if="open" class="inside" data-revealed :data-count="hidden">
+          <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" :tone="1" class="jumper" />
+        </div>
       </div>
     </div>
     <button
@@ -181,7 +183,7 @@ function showInput() {
 .stage {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   align-items: end;
   min-height: 196px;
@@ -257,59 +259,40 @@ function showInput() {
   flex-shrink: 0;
 }
 
-.bag-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  width: 100%;
-}
-
 .sack {
   position: relative;
-  width: 72px;
+  width: 84px;
   flex-shrink: 0;
 }
 
 .sack-art {
   display: block;
-  width: 72px;
-  height: 64px;
+  width: 84px;
+  height: 74px;
 }
 
 .guess {
   position: absolute;
   left: 50%;
-  top: 54%;
+  top: 56%;
+  margin: 0;
   transform: translate(-50%, -50%);
-  font-size: 1.7rem;
+  pointer-events: none;
+}
+
+.blank {
+  display: block;
+  min-width: 1.15em;
+  font-size: clamp(1.7rem, 8vw, 2.15rem);
   font-weight: 800;
   line-height: 1;
   color: #3b2a1a;
-  pointer-events: none;
+  text-align: center;
 }
 
 .inside {
   position: absolute;
   inset: 22px 8px 8px;
-}
-
-.eq {
-  margin: 0;
-  min-width: 0;
-}
-
-.blank {
-  display: inline-block;
-  min-width: 1.2em;
-  padding: 0 4px;
-  border-bottom: 5px solid var(--line);
-  font-size: clamp(1.5rem, 7vw, 2.2rem);
-  font-weight: 800;
-  text-align: center;
-  line-height: 1.1;
 }
 
 .total {

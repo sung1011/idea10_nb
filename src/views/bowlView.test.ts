@@ -1,6 +1,6 @@
 import { createApp, reactive } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
-import { confirmBowl, createBowlPlay, tapBowlDigit } from '../logic/bowlMove'
+import { confirmBowl, createBowlPlay, restoreBowl, tapBowlDigit } from '../logic/bowlMove'
 import bowlView from './bowlView.vue'
 
 function ten(first: { a: number; b: number; op: '+' | '-'; answer: number }) {
@@ -37,12 +37,16 @@ function keypad(el: HTMLElement) {
   return el.querySelector('.keypad')
 }
 
+function bagFace(el: HTMLElement) {
+  return el.querySelector('[data-bag-input] .blank')?.textContent
+}
+
 describe('小老鼠盘面', () => {
   afterEach(() => {
     document.body.innerHTML = ''
   })
 
-  it('加法 3+□=8：明盘 3、数字 8、袋子盖着；选数盘面不变，数字靠袋旁，键盘在下', async () => {
+  it('idle 袋面默认「？」；输入后袋上换成数字；键盘在下', async () => {
     const play = ten({ a: 3, b: 5, op: '+', answer: 8 })
     const { el, vueApp } = mountBowl(play)
     expect(el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
@@ -52,8 +56,8 @@ describe('小老鼠盘面', () => {
     expect(el.querySelector('[data-sack]')).toBeTruthy()
     expect(el.querySelector('[data-revealed]')).toBeFalsy()
     expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
-    expect(el.querySelector('[data-bag-input] .blank')?.textContent).toBe('?')
-    expect(el.querySelector('[data-bowl]')?.contains(el.querySelector('[data-bag-input]'))).toBe(true)
+    expect(bagFace(el)).toBe('?')
+    expect(el.querySelector('[data-sack]')?.contains(el.querySelector('[data-bag-input]'))).toBe(true)
     expect(el.querySelector('[data-bowl]')?.contains(keypad(el))).toBe(false)
     expect(keypad(el)?.previousElementSibling?.hasAttribute('data-bowl')).toBe(true)
     tapBowlDigit(play, '5')
@@ -62,12 +66,15 @@ describe('小老鼠盘面', () => {
     expect(again.el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
     expect(again.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
     expect(again.el.querySelector('[data-revealed]')).toBeFalsy()
-    expect(again.el.querySelector('[data-bag-input] .blank')?.textContent).toBe('5')
+    expect(bagFace(again.el)).toBe('5')
+    expect(again.el.querySelector('[data-sack]')?.contains(again.el.querySelector('[data-bag-input]'))).toBe(
+      true,
+    )
     expect(again.el.querySelector('[data-bowl]')?.contains(keypad(again.el))).toBe(false)
     again.vueApp.unmount()
   })
 
-  it('减法 8−□=3：明盘 3、数字 8、袋子盖着；确认后揭开 5 颗', async () => {
+  it('减法 8−□=3：确认后揭开 5 颗并收起袋面输入', async () => {
     const play = ten({ a: 8, b: 5, op: '-', answer: 3 })
     const { el, vueApp } = mountBowl(play)
     expect(el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
@@ -78,13 +85,14 @@ describe('小老鼠盘面', () => {
     vueApp.unmount()
     const again = mountBowl(play)
     expect(again.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('open')
+    expect(again.el.querySelector('[data-bag-input]')).toBeFalsy()
     expect(again.el.querySelector('[data-revealed]')?.getAttribute('data-count')).toBe('5')
     expect(again.el.querySelectorAll('[data-revealed] .bean').length).toBe(5)
     expect(again.el.querySelectorAll('[data-visible] .bean').length).toBe(3)
     again.vueApp.unmount()
   })
 
-  it('0 题揭开后是空袋', async () => {
+  it('0 题揭开后是空袋，袋面输入收起', async () => {
     const play = ten({ a: 5, b: 0, op: '+', answer: 5 })
     const { el, vueApp } = mountBowl(play)
     expect(el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('5')
@@ -93,12 +101,13 @@ describe('小老鼠盘面', () => {
     confirmBowl(play)
     vueApp.unmount()
     const again = mountBowl(play)
+    expect(again.el.querySelector('[data-bag-input]')).toBeFalsy()
     expect(again.el.querySelector('[data-revealed]')?.getAttribute('data-count')).toBe('0')
     expect(again.el.querySelectorAll('[data-revealed] .bean').length).toBe(0)
     again.vueApp.unmount()
   })
 
-  it('开场先出示全部豆子，装袋时整团离开明面；开场不显示输入', async () => {
+  it('开场和装袋不显示已输入数；idle 后才显在袋面', async () => {
     const play = ten({ a: 3, b: 5, op: '+', answer: 8 })
     play.intro = 'bounce'
     const first = mountBowl(play)
@@ -135,8 +144,8 @@ describe('小老鼠盘面', () => {
     expect(idle.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('3')
     expect(idle.el.querySelector('[data-take]')).toBeFalsy()
     expect(idle.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
-    expect(idle.el.querySelector('[data-bag-input] .blank')?.textContent).toBe('5')
-    expect(idle.el.querySelector('[data-bowl]')?.contains(idle.el.querySelector('[data-bag-input]'))).toBe(
+    expect(bagFace(idle.el)).toBe('5')
+    expect(idle.el.querySelector('[data-sack]')?.contains(idle.el.querySelector('[data-bag-input]'))).toBe(
       true,
     )
     expect(confirmButton(idle.el)?.disabled).toBe(false)
@@ -159,18 +168,35 @@ describe('小老鼠盘面', () => {
     expect(cover.el.querySelector('[data-take]')).toBeFalsy()
     expect(cover.el.querySelectorAll('[data-visible] .bean').length).toBe(5)
     expect(cover.el.querySelector('[data-mouse]')).toBeTruthy()
+    expect(cover.el.querySelector('[data-bag-input]')).toBeFalsy()
     cover.vueApp.unmount()
   })
 
-  it('答错不揭袋，豆子保持装走后的静止', async () => {
+  it('答错不揭袋，袋面回到「？」', async () => {
     const play = ten({ a: 3, b: 5, op: '+', answer: 8 })
     tapBowlDigit(play, '2')
     confirmBowl(play)
+    const shaking = mountBowl(play)
+    expect(shaking.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
+    expect(shaking.el.querySelector('[data-revealed]')).toBeFalsy()
+    expect(shaking.el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
+    expect(shaking.el.querySelector('[data-bowl]')?.getAttribute('data-motion')).toBe('shake')
+    expect(bagFace(shaking.el)).toBe('?')
+    shaking.vueApp.unmount()
+    restoreBowl(play)
+    const idle = mountBowl(play)
+    expect(bagFace(idle.el)).toBe('?')
+    expect(idle.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
+    idle.vueApp.unmount()
+  })
+
+  it('刷新 idle 仍把当时数字留在袋面', async () => {
+    const play = ten({ a: 3, b: 5, op: '+', answer: 8 })
+    play.input = '4'
     const { el, vueApp } = mountBowl(play)
-    expect(el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
-    expect(el.querySelector('[data-revealed]')).toBeFalsy()
-    expect(el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
-    expect(el.querySelector('[data-bowl]')?.getAttribute('data-motion')).toBe('shake')
+    expect(el.querySelector('[data-bowl]')?.getAttribute('data-intro')).toBe('idle')
+    expect(bagFace(el)).toBe('4')
+    expect(el.querySelector('[data-sack]')?.contains(el.querySelector('[data-bag-input]'))).toBe(true)
     vueApp.unmount()
   })
 })
