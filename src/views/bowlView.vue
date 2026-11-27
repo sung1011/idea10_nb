@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import bowlStage from '../components/bowlStage.vue'
 import numberKeypad from '../components/numberKeypad.vue'
 import progressLabel from '../components/progressLabel.vue'
-import { bowlLidOpen, type BowlPlay } from '../logic/bowlMove'
+import { bowlIntroPlaying, bowlLidOpen, type BowlPlay } from '../logic/bowlMove'
 import { bowlHiddenCount, bowlTotal, bowlVisibleCount } from '../logic/bowlProblem'
 
 const props = defineProps<{
@@ -22,6 +22,10 @@ const visible = computed(() => (problem.value ? bowlVisibleCount(problem.value) 
 const total = computed(() => (problem.value ? bowlTotal(problem.value) : 0))
 const hidden = computed(() => (problem.value ? bowlHiddenCount(problem.value) : 0))
 const open = computed(() => bowlLidOpen(props.play))
+const intro = computed(() => props.play.intro)
+const confirmDisabled = computed(
+  () => props.play.locked || props.play.moving || props.play.input === '' || bowlIntroPlaying(props.play),
+)
 </script>
 
 <template>
@@ -33,13 +37,14 @@ const open = computed(() => bowlLidOpen(props.play))
       :hidden="hidden"
       :open="open"
       :motion="play.motion"
+      :intro="intro"
       @help="emit('help')"
     />
     <p class="eq" aria-live="polite">
       <span class="blank">{{ play.input || '?' }}</span>
     </p>
     <number-keypad
-      :confirm-disabled="play.locked || play.moving || play.input === ''"
+      :confirm-disabled="confirmDisabled"
       @digit="emit('digit', $event)"
       @del="emit('del')"
       @confirm="emit('confirm')"

@@ -20,11 +20,16 @@ import {
 import { makeBusTrip } from '../logic/busRoute'
 import {
   arriveBowlNext,
+  beginBowlIntro,
+  BOWL_BOUNCE_MS,
   BOWL_CELEBRATE_MS,
+  BOWL_COVER_MS,
   BOWL_SHAKE_MS,
   bowlForDisk,
   confirmBowl,
+  coverBowlIntro,
   createBowlPlay,
+  finishBowlIntro,
   hasBowlProgress,
   restoreBowl,
   tapBowlDelete,
@@ -100,6 +105,8 @@ export {
   SEESAW_CELEBRATE_MS,
   SEESAW_HOLD_MS,
   SEESAW_LEVEL_MS,
+  BOWL_BOUNCE_MS,
+  BOWL_COVER_MS,
   BOWL_CELEBRATE_MS,
   BOWL_SHAKE_MS,
 }
@@ -493,9 +500,43 @@ export function createAppSession(
     })
   }
 
+  function runBowlCover() {
+    const play = state.bowl
+    if (play?.intro !== 'bounce') return
+    coverBowlIntro(play)
+    persistAll()
+    queueBowl(BOWL_COVER_MS, runBowlIntroDone)
+  }
+
+  function runBowlIntroDone() {
+    const play = state.bowl
+    if (!play?.intro) return
+    finishBowlIntro(play)
+    persistAll()
+  }
+
+  function startLiveBowlIntro(play: BowlPlay) {
+    if (reducedMotion()) return
+    if (!beginBowlIntro(play)) return
+    persistAll()
+    queueBowl(BOWL_BOUNCE_MS, runBowlCover)
+  }
+
   function flushBowlMove() {
     const play = state.bowl
-    if (!play?.moving) {
+    if (!play) {
+      clearBowlTimer()
+      return
+    }
+    if (play.intro) {
+      finishBowlIntro(play)
+      if (!play.moving) {
+        clearBowlTimer()
+        persistAll()
+        return
+      }
+    }
+    if (!play.moving) {
       clearBowlTimer()
       return
     }
@@ -517,6 +558,7 @@ export function createAppSession(
     cancelSpeech()
     state.view = 'bowl'
     persistAll()
+    startLiveBowlIntro(state.bowl)
   }
 
   if (loaded.data.play) {
@@ -635,6 +677,7 @@ export function createAppSession(
       if (openedView === 'bowl' || openedView === 'bowlComplete') {
         state.view = 'bowl'
         persistAll()
+        if (state.bowl) startLiveBowlIntro(state.bowl)
       }
       return
     }
@@ -908,7 +951,10 @@ export function createAppSession(
     if (!play?.moving) return
     const next = arriveBowlNext(play)
     if (next === 'done') finishBowl()
-    else persistAll()
+    else {
+      persistAll()
+      startLiveBowlIntro(play)
+    }
   }
 
   function runBowlRestore() {

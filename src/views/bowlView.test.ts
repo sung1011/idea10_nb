@@ -27,6 +27,12 @@ function mountBowl(play: ReturnType<typeof createBowlPlay>) {
   return { el, vueApp, play: state }
 }
 
+function confirmButton(el: HTMLElement) {
+  return [...el.querySelectorAll<HTMLButtonElement>('.keypad button')].find(
+    (node) => node.getAttribute('aria-label') === '确定',
+  )
+}
+
 describe('盖碗盘面', () => {
   afterEach(() => {
     document.body.innerHTML = ''
@@ -63,6 +69,7 @@ describe('盖碗盘面', () => {
     expect(again.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('open')
     expect(again.el.querySelector('[data-revealed]')?.getAttribute('data-count')).toBe('5')
     expect(again.el.querySelectorAll('[data-revealed] .bean').length).toBe(5)
+    expect(again.el.querySelectorAll('[data-visible] .bean').length).toBe(3)
     again.vueApp.unmount()
   })
 
@@ -78,5 +85,60 @@ describe('盖碗盘面', () => {
     expect(again.el.querySelector('[data-revealed]')?.getAttribute('data-count')).toBe('0')
     expect(again.el.querySelectorAll('[data-revealed] .bean').length).toBe(0)
     again.vueApp.unmount()
+  })
+
+  it('开场先出示全部豆子，扣碗时整团离开明面', async () => {
+    const play = ten({ a: 3, b: 5, op: '+', answer: 8 })
+    play.intro = 'bounce'
+    const first = mountBowl(play)
+    expect(first.el.querySelector('[data-bowl]')?.getAttribute('data-intro')).toBe('bounce')
+    expect(first.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('8')
+    expect(first.el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
+    expect(first.el.querySelector('[data-take]')?.getAttribute('data-count')).toBe('5')
+    expect(first.el.querySelectorAll('[data-take] .bean').length).toBe(5)
+    expect(first.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('away')
+    expect(first.el.querySelector('[data-bowl-total]')?.textContent?.trim()).toBe('8')
+    tapBowlDigit(play, '5')
+    first.vueApp.unmount()
+    const typed = mountBowl(play)
+    expect(typed.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('8')
+    expect(typed.el.querySelector('[data-take]')?.getAttribute('data-count')).toBe('5')
+    expect(typed.el.querySelector('.blank')?.textContent).toBe('5')
+    expect(confirmButton(typed.el)?.disabled).toBe(true)
+    play.intro = 'cover'
+    typed.vueApp.unmount()
+    const cover = mountBowl(play)
+    expect(cover.el.querySelector('[data-bowl]')?.getAttribute('data-intro')).toBe('cover')
+    expect(cover.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('3')
+    expect(cover.el.querySelector('[data-visible]')?.getAttribute('data-count')).toBe('3')
+    expect(cover.el.querySelectorAll('[data-visible] .bean').length).toBe(3)
+    expect(cover.el.querySelector('[data-take]')?.getAttribute('data-count')).toBe('5')
+    expect(cover.el.querySelectorAll('[data-take] .bean').length).toBe(5)
+    expect(confirmButton(cover.el)?.disabled).toBe(true)
+    play.intro = ''
+    cover.vueApp.unmount()
+    const idle = mountBowl(play)
+    expect(idle.el.querySelector('[data-bowl]')?.getAttribute('data-intro')).toBe('idle')
+    expect(idle.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('3')
+    expect(idle.el.querySelector('[data-take]')).toBeFalsy()
+    expect(idle.el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
+    expect(confirmButton(idle.el)?.disabled).toBe(false)
+    idle.vueApp.unmount()
+  })
+
+  it('0 变化题扣碗不带走豆子', async () => {
+    const play = ten({ a: 5, b: 0, op: '+', answer: 5 })
+    play.intro = 'bounce'
+    const bounce = mountBowl(play)
+    expect(bounce.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('5')
+    expect(bounce.el.querySelector('[data-take]')).toBeFalsy()
+    expect(bounce.el.querySelectorAll('[data-visible] .bean').length).toBe(5)
+    play.intro = 'cover'
+    bounce.vueApp.unmount()
+    const cover = mountBowl(play)
+    expect(cover.el.querySelector('[data-pile]')?.getAttribute('data-count')).toBe('5')
+    expect(cover.el.querySelector('[data-take]')).toBeFalsy()
+    expect(cover.el.querySelectorAll('[data-visible] .bean').length).toBe(5)
+    cover.vueApp.unmount()
   })
 })

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   arriveBowlNext,
+  beginBowlIntro,
   bowlForDisk,
+  bowlIntroPlaying,
   bowlLidOpen,
   confirmBowl,
+  coverBowlIntro,
   createBowlPlay,
+  finishBowlIntro,
   restoreBowl,
   tapBowlDelete,
   tapBowlDigit,
@@ -119,6 +123,56 @@ describe('磁盘规范化', () => {
     expect(disk.accounted).toBe(false)
     expect(disk.motion).toBe('idle')
     expect(disk.moving).toBe(false)
+  })
+
+  it('开场 bounce/cover 不落盘；磁盘永远是已扣好的 idle', () => {
+    const play = tenAdd()
+    expect(beginBowlIntro(play)).toBe(true)
+    expect(play.intro).toBe('bounce')
+    expect(bowlIntroPlaying(play)).toBe(true)
+    tapBowlDigit(play, '5')
+    expect(play.input).toBe('5')
+    expect(confirmBowl(play)).toBe('locked')
+    expect(play.motion).toBe('idle')
+    expect(bowlLidOpen(play)).toBe(false)
+    expect(coverBowlIntro(play)).toBe(true)
+    expect(play.intro).toBe('cover')
+    expect(confirmBowl(play)).toBe('locked')
+    const disk = bowlForDisk(play)
+    expect(disk.intro).toBe('')
+    expect(disk.motion).toBe('idle')
+    expect(disk.input).toBe('5')
+    expect(play.intro).toBe('cover')
+    expect(finishBowlIntro(play)).toBe(true)
+    expect(play.intro).toBe('')
+    expect(confirmBowl(play)).toBe('correct')
+  })
+
+  it('整团扣走后才可确认；选数不改变 intro', () => {
+    const play = tenAdd()
+    beginBowlIntro(play)
+    expect(tapBowlDigit(play, '4')).toBe(true)
+    expect(play.intro).toBe('bounce')
+    expect(bowlLidOpen(play)).toBe(false)
+    coverBowlIntro(play)
+    expect(play.input).toBe('4')
+    expect(play.intro).toBe('cover')
+    finishBowlIntro(play)
+    expect(confirmBowl(play)).toBe('wrong')
+    expect(bowlLidOpen(play)).toBe(false)
+  })
+
+  it('庆祝快照不含开场；晃动快照为本题 idle', () => {
+    const play = tenAdd()
+    beginBowlIntro(play)
+    coverBowlIntro(play)
+    finishBowlIntro(play)
+    tapBowlDigit(play, '5')
+    confirmBowl(play)
+    const ok = bowlForDisk(play)
+    expect(ok.intro).toBe('')
+    expect(ok.index).toBe(1)
+    expect(ok.motion).toBe('idle')
   })
 
   it('点总数才记一次提示，不改盘面', () => {

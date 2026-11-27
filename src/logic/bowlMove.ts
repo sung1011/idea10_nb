@@ -2,7 +2,10 @@ import { ROUND_SIZE, type Problem } from './makeProblem'
 import { isBowlCorrect, parseBowlInput } from './bowlProblem'
 
 export type BowlMotion = 'idle' | 'cheer' | 'shake'
+export type BowlIntro = '' | 'bounce' | 'cover'
 
+export const BOWL_BOUNCE_MS = 1000
+export const BOWL_COVER_MS = 700
 export const BOWL_CELEBRATE_MS = 1000
 export const BOWL_SHAKE_MS = 800
 
@@ -11,6 +14,7 @@ export type BowlPlay = {
   index: number
   input: string
   motion: BowlMotion
+  intro: BowlIntro
   outcome: '' | 'correct' | 'wrong'
   moving: boolean
   settled: boolean
@@ -38,6 +42,7 @@ export function createBowlPlay(problems: Problem[]): BowlPlay {
     index: 0,
     input: '',
     motion: 'idle',
+    intro: '',
     outcome: '',
     moving: false,
     settled: false,
@@ -50,12 +55,35 @@ export function createBowlPlay(problems: Problem[]): BowlPlay {
   }
 }
 
+export function beginBowlIntro(play: BowlPlay): boolean {
+  if (play.settled || play.moving || play.locked) return false
+  play.intro = 'bounce'
+  return true
+}
+
+export function coverBowlIntro(play: BowlPlay): boolean {
+  if (play.intro !== 'bounce') return false
+  play.intro = 'cover'
+  return true
+}
+
+export function finishBowlIntro(play: BowlPlay): boolean {
+  if (!play.intro) return false
+  play.intro = ''
+  return true
+}
+
+export function bowlIntroPlaying(play: BowlPlay): boolean {
+  return play.intro === 'bounce' || play.intro === 'cover'
+}
+
 export function restoreBowl(play: BowlPlay) {
   play.motion = 'idle'
   play.outcome = ''
   play.moving = false
   play.locked = false
   play.input = ''
+  play.intro = ''
 }
 
 export function arriveBowlNext(play: BowlPlay): 'next' | 'done' {
@@ -66,6 +94,7 @@ export function arriveBowlNext(play: BowlPlay): 'next' | 'done' {
     play.settled = true
     play.locked = true
     play.input = ''
+    play.intro = ''
     return 'done'
   }
   play.index += 1
@@ -74,6 +103,7 @@ export function arriveBowlNext(play: BowlPlay): 'next' | 'done' {
   play.moving = false
   play.locked = false
   play.input = ''
+  play.intro = ''
   return 'next'
 }
 
@@ -93,7 +123,7 @@ export function tapBowlDelete(play: BowlPlay): boolean {
 }
 
 export function confirmBowl(play: BowlPlay): BowlConfirmResult {
-  if (play.moving || play.settled || play.locked) return 'locked'
+  if (play.moving || play.settled || play.locked || bowlIntroPlaying(play)) return 'locked'
   if (play.input === '') return 'empty'
   const problem = currentBowlProblem(play)
   const value = parseBowlInput(play.input)
@@ -134,6 +164,7 @@ export function bowlLidOpen(play: BowlPlay): boolean {
 
 export function bowlForDisk(play: BowlPlay): BowlPlay {
   const copy = JSON.parse(JSON.stringify(play)) as BowlPlay
+  copy.intro = ''
   if (copy.settled) {
     copy.moving = false
     copy.motion = 'idle'
@@ -144,6 +175,7 @@ export function bowlForDisk(play: BowlPlay): BowlPlay {
   }
   if (copy.outcome === 'correct' || copy.motion === 'cheer') {
     arriveBowlNext(copy)
+    copy.intro = ''
     return copy
   }
   if (copy.outcome === 'wrong' || copy.motion === 'shake') {
@@ -154,6 +186,7 @@ export function bowlForDisk(play: BowlPlay): BowlPlay {
   copy.motion = 'idle'
   copy.outcome = ''
   copy.locked = false
+  copy.intro = ''
   copy.input = copy.input
   return copy
 }
@@ -166,6 +199,7 @@ export function hasBowlProgress(play: BowlPlay | null | undefined): boolean {
     play.hintThisRound > 0 ||
     play.moving ||
     play.motion !== 'idle' ||
+    bowlIntroPlaying(play) ||
     play.wrongOnce.some(Boolean)
   )
 }

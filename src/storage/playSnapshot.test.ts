@@ -221,4 +221,26 @@ describe('parsePlay', () => {
     expect(degraded?.bowl?.index).toBe(0)
     expect(degraded?.bus).toBeTruthy()
   })
+
+  it('旧 v4 盖碗无 intro 字段仍读成 idle，不丢另两局', () => {
+    const problems = makeRound('mix', 10, mulberry32(17))
+    const bowl = createBowlPlay(problems)
+    bowl.input = '2'
+    bowl.intro = 'bounce'
+    const snapshot = {
+      view: 'bowl' as const,
+      practice: emptyPractice('mix', problems, '🍀'),
+      bus: createBusPlay(makeBusTrip(mulberry32(18))),
+      seesaw: createSeesawPlay(problems),
+      bowl,
+    }
+    const raw = JSON.parse(JSON.stringify(snapshot)) as { bowl: Record<string, unknown> }
+    delete raw.bowl.intro
+    const parsed = parsePlay(raw, 'mix')
+    expect(parsed?.bowl?.intro).toBe('')
+    expect(parsed?.bowl?.input).toBe('2')
+    expect(parsed?.bowl?.motion).toBe('idle')
+    expect(parsed?.bus).toBeTruthy()
+    expect(parsed?.seesaw).toBeTruthy()
+  })
 })

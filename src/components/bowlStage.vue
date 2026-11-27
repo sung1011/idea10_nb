@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import bowlBean from './bowlBean.vue'
+import type { BowlIntro } from '../logic/bowlMove'
 
-defineProps<{
+const props = defineProps<{
   visible: number
   total: number
   hidden: number
   open: boolean
   motion: string
+  intro: BowlIntro
 }>()
 
 const emit = defineEmits<{
@@ -16,16 +18,57 @@ const emit = defineEmits<{
 function dots(count: number) {
   return Array.from({ length: Math.max(0, count) }, (_, index) => index)
 }
+
+function stayTone(index: number): 0 | 2 {
+  return index % 2 === 0 ? 0 : 2
+}
+
+function lidState() {
+  if (props.open) return 'open'
+  if (props.intro === 'bounce') return 'away'
+  return 'closed'
+}
+
+function showTakeCluster() {
+  return !props.open && (props.intro === 'bounce' || props.intro === 'cover')
+}
 </script>
 
 <template>
-  <div class="stage" data-bowl :data-motion="motion" :data-lid="open ? 'open' : 'closed'">
-    <div class="plate" data-visible :data-count="visible">
-      <div class="fruit">
-        <bowl-bean v-for="item in dots(visible)" :key="`v${item}`" />
+  <div
+    class="stage"
+    data-bowl
+    :data-motion="motion"
+    :data-intro="intro || 'idle'"
+    :data-lid="lidState()"
+  >
+    <div class="pile" data-pile :data-count="intro === 'bounce' ? total : visible">
+      <div class="stay" data-visible :data-count="visible">
+        <bowl-bean
+          v-for="item in dots(visible)"
+          :key="`s${item}`"
+          :tone="stayTone(item)"
+          class="jumper"
+          :style="{ animationDelay: `${(item % 5) * 0.07}s` }"
+        />
+      </div>
+      <div
+        v-if="showTakeCluster() && hidden > 0"
+        class="take"
+        data-take
+        :data-count="hidden"
+        :class="{ scoop: intro === 'cover', rest: intro === '' }"
+      >
+        <bowl-bean
+          v-for="item in dots(hidden)"
+          :key="`t${item}`"
+          :tone="1"
+          class="jumper"
+          :style="{ animationDelay: `${(item % 4) * 0.08}s` }"
+        />
       </div>
     </div>
-    <div class="bowl" :class="{ shake: motion === 'shake' }" data-lid>
+    <div class="bowl" :class="{ shake: motion === 'shake', enter: intro === 'cover' }" data-lid>
       <svg class="pot" viewBox="0 0 88 72" aria-hidden="true">
         <ellipse cx="44" cy="18" rx="30" ry="10" fill="#d9a066" stroke="#3b2a1a" stroke-width="3" />
         <path
@@ -36,8 +79,9 @@ function dots(count: number) {
         />
         <path d="M22 28 c8 18 36 18 44 0" fill="none" stroke="#fff4e4" stroke-width="2" opacity="0.35" />
       </svg>
+      <span v-if="!open" class="guess" aria-hidden="true">?</span>
       <div v-if="open" class="inside" data-revealed :data-count="hidden">
-        <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" />
+        <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" :tone="1" class="jumper" />
       </div>
     </div>
     <button
@@ -94,44 +138,82 @@ function dots(count: number) {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   align-items: end;
-  min-height: 168px;
+  min-height: 176px;
   padding-bottom: 8px;
 }
 
-.plate,
+.pile,
 .bowl {
   position: relative;
-  min-height: 110px;
+  min-height: 118px;
   border: 3px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
 }
 
-.plate {
-  display: grid;
-  place-items: center;
+.pile {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+  gap: 4px;
   padding: 10px 6px 8px;
 }
 
-.fruit,
+.stay,
+.take,
 .inside {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-content: center;
   gap: 3px;
-  max-width: 120px;
-  min-height: 52px;
+  max-width: 128px;
+  min-height: 28px;
+}
+
+.take {
+  position: relative;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(232, 180, 76, 0.28);
+}
+
+.take.scoop {
+  animation: scoop 0.7s ease-in forwards;
 }
 
 .bowl {
   overflow: hidden;
+  z-index: 1;
+}
+
+.stage[data-intro='bounce'] .bowl {
+  opacity: 0;
+  transform: translate(28%, -72%);
+}
+
+.stage[data-intro='cover'] .bowl {
+  animation: land 0.7s ease-out forwards;
 }
 
 .pot {
   display: block;
   width: 100%;
   height: 78px;
+}
+
+.guess {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #3b2a1a;
+  pointer-events: none;
 }
 
 .inside {
@@ -157,7 +239,11 @@ function dots(count: number) {
   animation: shake 0.2s ease-in-out 4;
 }
 
-.stage[data-motion='cheer'] :deep(.bean) {
+.stage[data-intro='bounce'] .jumper {
+  animation: hop 0.42s ease-in-out infinite;
+}
+
+.stage[data-motion='cheer'] .jumper {
   animation: hop 0.45s ease 2;
 }
 
@@ -215,7 +301,29 @@ function dots(count: number) {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-7px);
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes scoop {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(78%, 8%) scale(0.72);
+    opacity: 0.15;
+  }
+}
+
+@keyframes land {
+  0% {
+    opacity: 0;
+    transform: translate(28%, -72%);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
   }
 }
 
@@ -258,10 +366,19 @@ function dots(count: number) {
 
 @media (prefers-reduced-motion: reduce) {
   .bowl.shake,
-  .stage[data-motion='cheer'] :deep(.bean),
+  .stage[data-intro='bounce'] .jumper,
+  .stage[data-motion='cheer'] .jumper,
+  .take.scoop,
+  .stage[data-intro='cover'] .bowl,
   .mark,
   .spark {
     animation: none;
+  }
+
+  .stage[data-intro='bounce'] .bowl,
+  .stage[data-intro='cover'] .bowl {
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

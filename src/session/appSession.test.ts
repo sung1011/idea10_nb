@@ -1327,6 +1327,11 @@ describe('盖碗会话', () => {
     expect(restored.state.seesaw?.input).toBe('2')
   })
 
+  function fireIntro(timer: { fire: () => void }) {
+    timer.fire()
+    timer.fire()
+  }
+
   it('答对庆祝后进下一题；错答晃完仍是原题', () => {
     const storage = memoryStorage()
     const timer = mockDelay()
@@ -1339,6 +1344,7 @@ describe('盖碗会话', () => {
     })
     session.switchPlay('bowl')
     const play = session.state.bowl!
+    expect(play.intro).toBe('bounce')
     play.problems = [
       { a: 3, b: 5, op: '+', answer: 8 },
       { a: 1, b: 2, op: '+', answer: 3 },
@@ -1353,10 +1359,17 @@ describe('盖碗会话', () => {
     ]
     session.bowlTapDigit('5')
     session.bowlTapConfirm()
+    expect(play.motion).toBe('idle')
+    expect(play.intro).toBe('bounce')
+    fireIntro(timer)
+    expect(play.intro).toBe('')
+    session.bowlTapConfirm()
     expect(play.motion).toBe('cheer')
     timer.fire()
     expect(play.index).toBe(1)
     expect(play.motion).toBe('idle')
+    expect(play.intro).toBe('bounce')
+    fireIntro(timer)
     session.bowlTapDigit('9')
     session.bowlTapConfirm()
     expect(play.motion).toBe('shake')
@@ -1364,6 +1377,7 @@ describe('盖碗会话', () => {
     timer.fire()
     expect(play.index).toBe(1)
     expect(play.motion).toBe('idle')
+    expect(play.intro).toBe('')
     expect(play.input).toBe('')
   })
 
@@ -1391,6 +1405,7 @@ describe('盖碗会话', () => {
       { a: 1, b: 1, op: '+', answer: 2 },
       { a: 3, b: 3, op: '+', answer: 6 },
     ]
+    fireIntro(timer)
     session.bowlTapDigit('5')
     session.bowlTapConfirm()
     expect(play.motion).toBe('cheer')
@@ -1461,6 +1476,64 @@ describe('盖碗会话', () => {
     expect(saved.play.bus.stationIndex).toBe(station)
     expect(saved.play.seesaw.input).toBe('2')
     expect(saved.play.bowl.problems).toHaveLength(10)
+  })
+
+  it('减弱动效直接 idle；开场中切走或刷新不重播', () => {
+    const quiet = createAppSession({
+      storage: memoryStorage(),
+      rng: mulberry32(119),
+      reducedMotion: () => true,
+    })
+    quiet.switchPlay('bowl')
+    expect(quiet.state.bowl?.intro).toBe('')
+    expect(quiet.state.bowl?.motion).toBe('idle')
+
+    const storage = memoryStorage()
+    const timer = mockDelay()
+    const session = createAppSession({
+      storage,
+      rng: mulberry32(120),
+      reducedMotion: () => false,
+      delay: timer.delay,
+      cancelDelay: timer.cancel,
+    })
+    session.switchPlay('bowl')
+    expect(session.state.bowl?.intro).toBe('bounce')
+    const bouncing = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}')
+    expect(bouncing.play.bowl.intro).toBe('')
+    expect(bouncing.play.bowl.motion).toBe('idle')
+    session.switchPlay('practice')
+    expect(session.state.bowl?.intro).toBe('')
+    session.switchPlay('bowl')
+    expect(session.state.bowl?.intro).toBe('')
+    expect(session.state.bowl?.index).toBe(0)
+
+    const restored = createAppSession({
+      storage,
+      rng: mulberry32(121),
+      reducedMotion: () => false,
+    })
+    expect(restored.state.view).toBe('bowl')
+    expect(restored.state.bowl?.intro).toBe('')
+    expect(restored.state.bowl?.motion).toBe('idle')
+  })
+
+  it('0.6.11 的 v4 盖碗局读成已扣好，不重播开场', () => {
+    const storage = memoryStorage()
+    const seed = createAppSession({ storage, rng: mulberry32(122), reducedMotion: () => true })
+    seed.switchPlay('bowl')
+    seed.bowlTapDigit('4')
+    const raw = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as {
+      play: { bowl: Record<string, unknown> }
+    }
+    delete raw.play.bowl.intro
+    storage.setItem(STORAGE_KEY, JSON.stringify(raw))
+    const loaded = createAppSession({ storage, rng: mulberry32(123), reducedMotion: () => false })
+    expect(loaded.state.view).toBe('bowl')
+    expect(loaded.state.bowl?.intro).toBe('')
+    expect(loaded.state.bowl?.input).toBe('4')
+    expect(loaded.state.bowl?.motion).toBe('idle')
+    expect(loaded.state.bowl?.problems).toHaveLength(10)
   })
 
   it('点总数只记提示、不改输入和盘面', () => {

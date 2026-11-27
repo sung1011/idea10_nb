@@ -385,6 +385,7 @@ function parseBowl(raw: unknown, _mode: Mode): BowlPlay | null {
     index,
     input: raw.input,
     motion: parseBowlMotion(raw.motion),
+    intro: '',
     outcome: raw.outcome,
     moving: raw.moving === true,
     settled,
