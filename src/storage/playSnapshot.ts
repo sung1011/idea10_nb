@@ -16,7 +16,7 @@ import {
   type StopKind,
 } from '../logic/busRoute'
 import { bowlForDisk, type BowlPlay } from '../logic/bowlMove'
-import { ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProblem'
+import { RANGE_LIMIT, RANGE_MAX, ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProblem'
 import { isLegacyStickerEmoji, isStickerId, type StickerId } from '../logic/stickerPool'
 import { seesawForDisk, type SeesawPlay } from '../logic/seesawMove'
 import { seesawRight } from '../logic/seesawProblem'
@@ -145,15 +145,15 @@ function parseSeats(raw: unknown): (Animal | null)[] | null {
   return out
 }
 
-function parseProblem(raw: unknown, mode: Mode): Problem | null {
+function parseProblem(raw: unknown, mode: Mode, max = RANGE_MAX): Problem | null {
   if (!isRecord(raw)) return null
-  const a = intIn(raw.a, 0, 10)
-  const b = intIn(raw.b, 0, 10)
+  const a = intIn(raw.a, 0, max)
+  const b = intIn(raw.b, 0, max)
   if (a == null || b == null || !isOp(raw.op) || typeof raw.answer !== 'number' || !Number.isInteger(raw.answer)) {
     return null
   }
   const answer = raw.op === '+' ? a + b : a - b
-  if (raw.answer !== answer || answer < 0 || answer > 10) return null
+  if (raw.answer !== answer || answer < 0 || answer > max) return null
   if (raw.op === '-' && a < b) return null
   if (mode === 'add' && raw.op !== '+') return null
   if (mode === 'sub' && raw.op !== '-') return null
@@ -167,7 +167,7 @@ function parsePractice(raw: unknown, mode: Mode): PracticeSnapshot | null {
   const problems: Problem[] = []
   const keys = new Set<string>()
   for (const item of raw.problems) {
-    const problem = parseProblem(item, mode)
+    const problem = parseProblem(item, mode, RANGE_LIMIT)
     if (!problem) return null
     const key = `${problem.a}${problem.op}${problem.b}`
     if (keys.has(key)) return null
@@ -177,7 +177,7 @@ function parsePractice(raw: unknown, mode: Mode): PracticeSnapshot | null {
   const settled = raw.settled === true
   const index = intIn(raw.index, 0, ROUND_SIZE - 1)
   if (index == null) return null
-  if (typeof raw.input !== 'string' || raw.input.length > 2 || !/^\d*$/.test(raw.input)) return null
+  if (typeof raw.input !== 'string' || raw.input.length > 3 || !/^\d*$/.test(raw.input)) return null
   if (raw.showHint !== true && raw.showHint !== false) return null
   const wrongOnce = bools(raw.wrongOnce, ROUND_SIZE)
   const hintOnce = bools(raw.hintOnce, ROUND_SIZE)

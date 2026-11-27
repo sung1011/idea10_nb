@@ -9,6 +9,7 @@ import {
   isZeroRelated,
   makeRound,
   mulberry32,
+  normalizeRange,
   parseInput,
   problemKey,
 } from './makeProblem'
@@ -121,11 +122,13 @@ describe('一轮出题', () => {
 })
 
 describe('输入解析', () => {
-  it('空串和非法不解析，两位数字可表示 10', () => {
+  it('空串和非法不解析，三位数字可表示 100', () => {
     expect(parseInput('')).toBeNull()
     expect(parseInput('10')).toBe(10)
     expect(parseInput('01')).toBe(1)
+    expect(parseInput('100')).toBe(100)
     expect(parseInput('abc')).toBeNull()
+    expect(parseInput('1000')).toBeNull()
   })
 
   it('判对只认数值相等', () => {
@@ -133,5 +136,40 @@ describe('输入解析', () => {
     expect(isCorrect(problem, '10')).toBe(true)
     expect(isCorrect(problem, '9')).toBe(false)
     expect(isCorrect(problem, '')).toBe(false)
+  })
+})
+
+describe('算式范围', () => {
+  it('空、0、小数、负、超 999 按规则纠正', () => {
+    expect(normalizeRange(undefined)).toBe(10)
+    expect(normalizeRange('')).toBe(10)
+    expect(normalizeRange(0)).toBe(10)
+    expect(normalizeRange(0.4)).toBe(10)
+    expect(normalizeRange(-4)).toBe(10)
+    expect(normalizeRange('abc')).toBe(10)
+    expect(normalizeRange(12.4)).toBe(12)
+    expect(normalizeRange('12.6')).toBe(13)
+    expect(normalizeRange(2000)).toBe(999)
+    expect(normalizeRange(20)).toBe(20)
+  })
+
+  it('20 以内加法得数不超过 20，减法被减数不超过 20', () => {
+    const adds = allAddProblems(20)
+    expect(adds.some((item) => item.answer > 10)).toBe(true)
+    for (const item of adds) {
+      expect(item.a + item.b).toBeLessThanOrEqual(20)
+    }
+    const round = makeRound('mix', ROUND_SIZE, mulberry32(21), 20)
+    expect(round).toHaveLength(10)
+    expect(round.some((item) => item.answer > 10 || item.a > 10)).toBe(true)
+    for (const item of round) {
+      if (item.op === '+') expect(item.answer).toBeLessThanOrEqual(20)
+      else expect(item.a).toBeLessThanOrEqual(20)
+    }
+    const ten = makeRound('mix', ROUND_SIZE, mulberry32(21))
+    for (const item of ten) {
+      expect(item.a).toBeLessThanOrEqual(RANGE_MAX)
+      expect(item.answer).toBeLessThanOrEqual(RANGE_MAX)
+    }
   })
 })

@@ -1756,5 +1756,77 @@ describe('贴纸奖励', () => {
   })
 })
 
+describe('算式范围设置', () => {
+  function withinTen(item: { a: number; b: number; answer: number }) {
+    return item.a <= 10 && item.b <= 10 && item.answer <= 10
+  }
+
+  it('默认 10；改设置不改进行中算式；再来一次才用新 N', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(300), reducedMotion: () => true })
+    const first = session.state.problems.map(problemKey)
+    expect(session.state.stats.rangeMax).toBe(10)
+    expect(session.state.problems.every(withinTen)).toBe(true)
+    session.tapDigit('3')
+    session.setRangeMax(50)
+    expect(session.state.stats.rangeMax).toBe(50)
+    expect(session.state.problems.map(problemKey)).toEqual(first)
+    expect(session.state.input).toBe('3')
+    expect(session.state.view).toBe('practice')
+    session.setRangeMax('')
+    expect(session.state.stats.rangeMax).toBe(10)
+    session.setRangeMax(0)
+    expect(session.state.stats.rangeMax).toBe(10)
+    session.setRangeMax(-4)
+    expect(session.state.stats.rangeMax).toBe(10)
+    session.setRangeMax(12.6)
+    expect(session.state.stats.rangeMax).toBe(13)
+    session.setRangeMax(2000)
+    expect(session.state.stats.rangeMax).toBe(999)
+    session.setRangeMax(50)
+    session.setRangeMax(5)
+    session.tapDigit('0')
+    expect(session.state.input).toBe('30')
+    session.setRangeMax(50)
+    finishRound(session)
+    expect(session.state.stats.stickerCount).toBe(1)
+    const bagNext = session.state.stickerBag.next
+    session.anotherRound()
+    expect(session.state.problems.some((item) => item.answer > 10 || item.a > 10)).toBe(true)
+    expect(
+      session.state.problems.every((item) =>
+        item.op === '+' ? item.answer <= 50 : item.a <= 50,
+      ),
+    ).toBe(true)
+    expect(session.state.stickerBag.next).toBe(bagNext)
+  })
+
+  it('坐车、跷跷板、盖碗新开仍 10 以内，不跟算式范围', () => {
+    const storage = memoryStorage()
+    const session = createAppSession({ storage, rng: mulberry32(301), reducedMotion: () => true })
+    session.tapDigit('4')
+    session.setRangeMax(50)
+    expect(session.state.problems.every(withinTen)).toBe(true)
+    expect(session.state.input).toBe('4')
+    session.switchPlay('seesaw')
+    expect(session.state.seesaw?.problems.every(withinTen)).toBe(true)
+    session.switchPlay('bowl')
+    expect(session.state.bowl?.problems.every(withinTen)).toBe(true)
+    session.switchPlay('bus')
+    expect(session.state.bus?.trip.startCount).toBeLessThanOrEqual(10)
+    expect(session.state.bus?.trip.stations.every((stop) => stop.target <= 10)).toBe(true)
+    session.switchPlay('practice')
+    expect(session.state.input).toBe('4')
+    expect(session.state.problems.every(withinTen)).toBe(true)
+    finishRound(session)
+    session.anotherRound()
+    expect(session.state.problems.some((item) => item.answer > 10 || item.a > 10)).toBe(true)
+    session.switchPlay('seesaw')
+    expect(session.state.seesaw?.problems.every(withinTen)).toBe(true)
+    session.switchPlay('bowl')
+    expect(session.state.bowl?.problems.every(withinTen)).toBe(true)
+  })
+})
+
 
 

@@ -243,4 +243,46 @@ describe('parsePlay', () => {
     expect(parsed?.bus).toBeTruthy()
     expect(parsed?.seesaw).toBeTruthy()
   })
+
+  it('算式可恢复大于 10 的题，跷跷板和盖碗仍只接受 10 以内', () => {
+    const big = { a: 15, b: 5, op: '+' as const, answer: 20 }
+    const ten = makeRound('mix', 10, mulberry32(19))
+    const practiceProblems = [big, ...ten.slice(1)]
+    const ok = parsePlay(
+      {
+        view: 'practice',
+        practice: emptyPractice('mix', practiceProblems, '🌈'),
+        bus: null,
+        seesaw: null,
+        bowl: null,
+      },
+      'mix',
+    )
+    expect(ok?.practice.problems[0]).toEqual(big)
+
+    const seesawRaw = JSON.parse(
+      JSON.stringify({
+        view: 'seesaw',
+        practice: emptyPractice('mix', ten, '🌈'),
+        bus: null,
+        seesaw: createSeesawPlay(practiceProblems),
+        bowl: null,
+      }),
+    )
+    const seesawParsed = parsePlay(seesawRaw, 'mix')
+    expect(seesawParsed?.seesaw).toBeNull()
+    expect(seesawParsed?.practice.problems).toHaveLength(10)
+
+    const bowlRaw = JSON.parse(
+      JSON.stringify({
+        view: 'bowl',
+        practice: emptyPractice('mix', ten, '🌈'),
+        bus: null,
+        seesaw: null,
+        bowl: createBowlPlay(practiceProblems),
+      }),
+    )
+    const bowlParsed = parsePlay(bowlRaw, 'mix')
+    expect(bowlParsed?.bowl).toBeNull()
+  })
 })

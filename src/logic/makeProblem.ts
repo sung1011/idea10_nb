@@ -1,5 +1,17 @@
 export const RANGE_MAX = 10
+export const DEFAULT_RANGE = 10
+export const RANGE_LIMIT = 999
 export const ROUND_SIZE = 10
+
+/** 空、0、非正数回 10；小数取最近正整数；超过 999 按 999。 */
+export function normalizeRange(raw: unknown): number {
+  if (raw === '' || raw == null) return DEFAULT_RANGE
+  const n = typeof raw === 'number' ? raw : Number(String(raw).trim())
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_RANGE
+  const rounded = Math.round(n)
+  if (rounded <= 0) return DEFAULT_RANGE
+  return Math.min(RANGE_LIMIT, rounded)
+}
 
 export type Mode = 'add' | 'sub' | 'mix'
 export type Op = '+' | '-'
@@ -20,12 +32,13 @@ export function isZeroRelated(problem: Problem): boolean {
   return problem.a === 0 || problem.b === 0 || problem.answer === 0
 }
 
-export function allAddProblems(): Problem[] {
+export function allAddProblems(range = RANGE_MAX): Problem[] {
+  const max = normalizeRange(range)
   const out: Problem[] = []
-  for (let a = 0; a <= RANGE_MAX; a += 1) {
-    for (let b = 0; b <= RANGE_MAX; b += 1) {
+  for (let a = 0; a <= max; a += 1) {
+    for (let b = 0; b <= max; b += 1) {
       const answer = a + b
-      if (answer <= RANGE_MAX) {
+      if (answer <= max) {
         out.push({ a, b, op: '+', answer })
       }
     }
@@ -33,10 +46,11 @@ export function allAddProblems(): Problem[] {
   return out
 }
 
-export function allSubProblems(): Problem[] {
+export function allSubProblems(range = RANGE_MAX): Problem[] {
+  const max = normalizeRange(range)
   const out: Problem[] = []
-  for (let a = 0; a <= RANGE_MAX; a += 1) {
-    for (let b = 0; b <= RANGE_MAX; b += 1) {
+  for (let a = 0; a <= max; a += 1) {
+    for (let b = 0; b <= max; b += 1) {
       if (a >= b) {
         out.push({ a, b, op: '-', answer: a - b })
       }
@@ -45,10 +59,10 @@ export function allSubProblems(): Problem[] {
   return out
 }
 
-export function allProblems(mode: Mode): Problem[] {
-  if (mode === 'add') return allAddProblems()
-  if (mode === 'sub') return allSubProblems()
-  return [...allAddProblems(), ...allSubProblems()]
+export function allProblems(mode: Mode, range = RANGE_MAX): Problem[] {
+  if (mode === 'add') return allAddProblems(range)
+  if (mode === 'sub') return allSubProblems(range)
+  return [...allAddProblems(range), ...allSubProblems(range)]
 }
 
 export function shuffle<T>(items: readonly T[], rng: () => number): T[] {
@@ -102,19 +116,35 @@ export function sampleWithZeroCap(
       out.push(item)
     }
   }
+  if (out.length < count && shuffled.length > 0) {
+    let cursor = 0
+    while (out.length < count && cursor < shuffled.length * count) {
+      const item = shuffled[cursor % shuffled.length]!
+      cursor += 1
+      if (isZeroRelated(item) && zeros >= 1 && shuffled.some((entry) => !isZeroRelated(entry))) continue
+      if (isZeroRelated(item) && zeros < 1) zeros += 1
+      out.push(item)
+    }
+  }
   if (out.length < count) {
     throw new Error(`题库不足：需要 ${count} 题，只抽到 ${out.length} 题`)
   }
   return out
 }
 
-export function makeRound(mode: Mode, count = ROUND_SIZE, rng: () => number = Math.random): Problem[] {
+export function makeRound(
+  mode: Mode,
+  count = ROUND_SIZE,
+  rng: () => number = Math.random,
+  range = RANGE_MAX,
+): Problem[] {
+  const max = normalizeRange(range)
   if (mode === 'add' || mode === 'sub') {
-    return sampleWithZeroCap(allProblems(mode), count, rng)
+    return sampleWithZeroCap(allProblems(mode, max), count, rng)
   }
 
-  const adds = allAddProblems()
-  const subs = allSubProblems()
+  const adds = allAddProblems(max)
+  const subs = allSubProblems(max)
   const addPick = pickOnePreferNormal(adds, rng)
   const usedZero = isZeroRelated(addPick)
   const subSource = usedZero ? subs.filter((item) => !isZeroRelated(item)) : subs
@@ -127,8 +157,12 @@ export function makeRound(mode: Mode, count = ROUND_SIZE, rng: () => number = Ma
 }
 
 export function parseInput(raw: string): number | null {
-  if (!/^\d{1,2}$/.test(raw)) return null
+  if (!/^\d{1,3}$/.test(raw)) return null
   return Number(raw)
+}
+
+export function practiceInputMaxLen(range = RANGE_MAX): number {
+  return String(normalizeRange(range)).length
 }
 
 export function isCorrect(problem: Problem, raw: string): boolean {

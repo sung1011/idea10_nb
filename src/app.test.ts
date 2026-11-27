@@ -84,6 +84,10 @@ describe('界面响应', () => {
     expect(el.textContent).toContain('更新')
     expect(el.textContent).toContain('练习次数')
     expect(el.textContent).toContain('加法')
+    expect(el.textContent).toContain('算式范围')
+    expect(el.textContent).toContain('以内')
+    expect(el.textContent).toContain('只作用于普通算式')
+    expect((el.querySelector('[data-range-input]') as HTMLInputElement | null)?.value).toBe('10')
 
     button(el, '更新').click()
     await flush()

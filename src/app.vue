@@ -160,6 +160,7 @@ onUnmounted(() => {
     <parent-settings-view
       v-else-if="state.view === 'settings'"
       :mode="state.mode"
+      :range-max="state.stats.rangeMax"
       :rounds-completed="state.stats.roundsCompleted"
       :first-try-correct="state.stats.firstTryCorrect"
       :hint-used="state.stats.hintUsed"
@@ -185,6 +186,7 @@ onUnmounted(() => {
       :install-busy="installBusy"
       @close="session.closeSettings"
       @mode="session.setMode"
+      @range="session.setRangeMax"
       @reset-ask="session.requestReset"
       @reset-cancel="session.cancelReset"
       @reset-confirm="session.confirmReset"

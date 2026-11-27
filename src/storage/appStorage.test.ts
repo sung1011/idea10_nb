@@ -5,6 +5,7 @@ import { makeRound, mulberry32 } from '../logic/makeProblem'
 import {
   DEFAULT_SAVE,
   STORAGE_KEY,
+  STORAGE_VERSION,
   loadSave,
   memoryStorage,
   parseSave,
@@ -43,6 +44,7 @@ describe('parseSave', () => {
     ).toEqual({
       version: 4,
       mode: 'add',
+      rangeMax: 10,
       roundsCompleted: 2,
       firstTryCorrect: 8,
       hintUsed: 1,
@@ -67,6 +69,7 @@ describe('parseSave', () => {
     expect(parseSave(v1Stats())).toEqual({
       version: 4,
       mode: 'mix',
+      rangeMax: 10,
       roundsCompleted: 12,
       firstTryCorrect: 48,
       hintUsed: 3,
@@ -297,5 +300,30 @@ describe('load / write / reset', () => {
     expect(resetSave(storage).ok).toBe(true)
     expect(storage.getItem(STORAGE_KEY)).toBeNull()
     expect(storage.getItem('otherApp')).toBe('keep-me')
+  })
+
+  it('缺 rangeMax 当 10，非法值纠正，不升存档版本', () => {
+    const problems = makeRound('mix', 10, mulberry32(5))
+    const { rangeMax: _omit, ...withoutRange } = DEFAULT_SAVE
+    const missing = parseSave({
+      ...withoutRange,
+      play: {
+        view: 'practice',
+        practice: emptyPractice('mix', problems, '🌈'),
+        bus: null,
+        seesaw: null,
+      },
+    })
+    expect(missing?.version).toBe(4)
+    expect(missing?.rangeMax).toBe(10)
+    expect(missing?.play?.practice.problems).toHaveLength(10)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: 50 })?.rangeMax).toBe(50)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: 0 })?.rangeMax).toBe(10)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: -3 })?.rangeMax).toBe(10)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: 12.6 })?.rangeMax).toBe(13)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: 2000 })?.rangeMax).toBe(999)
+    expect(parseSave({ ...DEFAULT_SAVE, rangeMax: 'abc' })?.rangeMax).toBe(10)
+    expect(STORAGE_VERSION).toBe(4)
+    expect(STORAGE_KEY).toBe('idea10Nb.v1')
   })
 })

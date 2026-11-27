@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import versionRow from '../components/versionRow.vue'
 import type { VersionGroup } from '../logic/appVersion'
 import type { InstallKind } from '../logic/installPrompt'
@@ -7,8 +7,9 @@ import type { Mode } from '../logic/makeProblem'
 
 type SettingsTab = 'topic' | 'update'
 
-defineProps<{
+const props = defineProps<{
   mode: Mode
+  rangeMax: number
   roundsCompleted: number
   firstTryCorrect: number
   hintUsed: number
@@ -37,6 +38,7 @@ defineProps<{
 const emit = defineEmits<{
   close: []
   mode: [value: Mode]
+  range: [value: string]
   resetAsk: []
   resetCancel: []
   resetConfirm: []
@@ -45,11 +47,22 @@ const emit = defineEmits<{
 }>()
 
 const tab = ref<SettingsTab>('topic')
+const rangeDraft = ref(String(props.rangeMax))
+watch(
+  () => props.rangeMax,
+  (value) => {
+    rangeDraft.value = String(value)
+  },
+)
 const modes: { id: Mode; label: string }[] = [
   { id: 'add', label: '加法' },
   { id: 'sub', label: '减法' },
   { id: 'mix', label: '混合' },
 ]
+
+function commitRange() {
+  emit('range', rangeDraft.value)
+}
 </script>
 
 <template>
@@ -96,8 +109,24 @@ const modes: { id: Mode; label: string }[] = [
         </button>
       </div>
 
-      <p class="label">范围</p>
-      <p class="locked">10 以内（首版）</p>
+      <p class="label">算式范围</p>
+      <label class="range-row">
+        <input
+          class="range-input"
+          type="text"
+          inputmode="numeric"
+          enterkeyhint="done"
+          autocomplete="off"
+          aria-label="算式范围"
+          data-range-input
+          :value="rangeDraft"
+          @input="rangeDraft = ($event.target as HTMLInputElement).value"
+          @change="commitRange"
+          @blur="commitRange"
+        />
+        <span>以内</span>
+      </label>
+      <p class="hint">只作用于普通算式，坐车、跷跷板、盖碗仍是 10 以内。</p>
 
       <p class="label">本机记录</p>
       <ul class="stats">
@@ -236,6 +265,32 @@ const modes: { id: Mode; label: string }[] = [
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.range-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  font-weight: 800;
+}
+
+.range-input {
+  width: 5.5em;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  text-align: center;
 }
 
 .locked,

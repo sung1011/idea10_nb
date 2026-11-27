@@ -38,7 +38,16 @@ import {
   type BowlPlay,
 } from '../logic/bowlMove'
 import { bowlTotal } from '../logic/bowlProblem'
-import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
+import {
+  isCorrect,
+  makeRound,
+  normalizeRange,
+  practiceInputMaxLen,
+  RANGE_LIMIT,
+  ROUND_SIZE,
+  type Mode,
+  type Problem,
+} from '../logic/makeProblem'
 import { playKindOf, type PlayKind } from '../logic/playKind'
 import {
   arriveSeesawNext,
@@ -204,6 +213,7 @@ export function createAppSession(
   const statsOnly = (data: SaveData): SaveData => ({
     version: 4,
     mode: data.mode,
+    rangeMax: normalizeRange(data.rangeMax),
     roundsCompleted: data.roundsCompleted,
     firstTryCorrect: data.firstTryCorrect,
     hintUsed: data.hintUsed,
@@ -295,7 +305,7 @@ export function createAppSession(
       pendingMode ? false : state.settled,
     )
     const practice = pendingMode
-      ? emptyPractice(state.mode, makeRound(state.mode, ROUND_SIZE, rng), state.stickerEmoji)
+      ? emptyPractice(state.mode, makePracticeRound(), state.stickerEmoji)
       : livePractice(state)
     const seesaw = state.seesaw ? seesawForDisk(state.seesaw) : null
     const bowl = pendingMode
@@ -360,9 +370,13 @@ export function createAppSession(
     state.stickerId = practice.stickerId ?? ''
   }
 
+  function makePracticeRound(mode: Mode = state.mode) {
+    return makeRound(mode, ROUND_SIZE, rng, normalizeRange(state.stats.rangeMax))
+  }
+
   function startRound(mode: Mode = state.mode) {
     state.mode = mode
-    state.problems = makeRound(mode, ROUND_SIZE, rng)
+    state.problems = makePracticeRound(mode)
     state.index = 0
     state.input = ''
     state.showHint = false
@@ -581,7 +595,7 @@ export function createAppSession(
   function tapDigit(digit: string) {
     if (state.view !== 'practice' || state.locked || state.settled) return
     if (!/^\d$/.test(digit)) return
-    if (state.input.length >= 2) return
+    if (state.input.length >= practiceInputMaxLen(RANGE_LIMIT)) return
     state.feedback = ''
     state.input += digit
     persistAll()
@@ -709,6 +723,10 @@ export function createAppSession(
     if (mode === state.mode) return
     state.mode = mode
     persistAll()
+  }
+
+  function setRangeMax(raw: unknown) {
+    persistAll({ ...state.stats, rangeMax: normalizeRange(raw) })
   }
 
   function anotherRound() {
@@ -1160,6 +1178,7 @@ export function createAppSession(
     openSettings,
     closeSettings,
     setMode,
+    setRangeMax,
     anotherRound,
     openBus,
     openPractice,

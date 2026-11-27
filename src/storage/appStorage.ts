@@ -1,4 +1,4 @@
-import type { Mode } from '../logic/makeProblem'
+import { DEFAULT_RANGE, normalizeRange, type Mode } from '../logic/makeProblem'
 import { parseStickerBag, type StickerId } from '../logic/stickerPool'
 import { parsePlay, type PlaySnapshot } from './playSnapshot'
 
@@ -8,6 +8,7 @@ export const STORAGE_VERSION = 4
 export type SaveData = {
   version: typeof STORAGE_VERSION
   mode: Mode
+  rangeMax: number
   roundsCompleted: number
   firstTryCorrect: number
   hintUsed: number
@@ -30,6 +31,7 @@ export type SaveData = {
 export const DEFAULT_SAVE: SaveData = {
   version: STORAGE_VERSION,
   mode: 'mix',
+  rangeMax: DEFAULT_RANGE,
   roundsCompleted: 0,
   firstTryCorrect: 0,
   hintUsed: 0,
@@ -109,6 +111,7 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
   }
   return {
     mode: rec.mode,
+    rangeMax: rec.rangeMax == null ? DEFAULT_RANGE : normalizeRange(rec.rangeMax),
     roundsCompleted,
     firstTryCorrect,
     hintUsed,
