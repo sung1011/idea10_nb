@@ -1534,6 +1534,8 @@ describe('盖碗会话', () => {
     expect(loaded.state.bowl?.input).toBe('4')
     expect(loaded.state.bowl?.motion).toBe('idle')
     expect(loaded.state.bowl?.problems).toHaveLength(10)
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}').version).toBe(4)
+    expect(STORAGE_KEY).toBe('idea10Nb.v1')
   })
 
   it('点总数只记提示、不改输入和盘面', () => {

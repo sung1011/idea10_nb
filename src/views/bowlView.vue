@@ -38,11 +38,9 @@ const confirmDisabled = computed(
       :open="open"
       :motion="play.motion"
       :intro="intro"
+      :input="play.input"
       @help="emit('help')"
     />
-    <p class="eq" aria-live="polite">
-      <span class="blank">{{ play.input || '?' }}</span>
-    </p>
     <number-keypad
       :confirm-disabled="confirmDisabled"
       @digit="emit('digit', $event)"
@@ -56,21 +54,5 @@ const confirmDisabled = computed(
 .bowl {
   display: grid;
   gap: 10px;
-}
-
-.eq {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 0;
-  font-size: clamp(2rem, 10vw, 3rem);
-  font-weight: 800;
-}
-
-.blank {
-  min-width: 1.4em;
-  padding: 0 8px;
-  border-bottom: 6px solid var(--line);
-  text-align: center;
 }
 </style>

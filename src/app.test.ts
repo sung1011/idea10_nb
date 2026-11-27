@@ -266,7 +266,7 @@ describe('界面响应', () => {
       '➕ 算式',
       '🚌 坐车',
       '⚖️ 跷跷板',
-      '🥣 盖碗',
+      '🐭 小老鼠',
     ])
     expect(home.options[home.selectedIndex]?.textContent?.trim()).toBe('➕ 算式')
     expect(el.querySelector('[data-go-bus]')).toBeFalsy()
@@ -295,7 +295,7 @@ describe('界面响应', () => {
     selectPlay(el, 'bowl')
     await nextTick()
     expect(playSwitch(el).value).toBe('bowl')
-    expect(playSwitch(el).options[playSwitch(el).selectedIndex]?.textContent?.trim()).toBe('🥣 盖碗')
+    expect(playSwitch(el).options[playSwitch(el).selectedIndex]?.textContent?.trim()).toBe('🐭 小老鼠')
     expect(el.querySelector('[data-bowl]')).toBeTruthy()
     expect(el.querySelector('[data-bowl]')?.getAttribute('data-intro')).toBe('bounce')
     expect(el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('away')

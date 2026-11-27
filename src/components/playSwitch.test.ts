@@ -29,7 +29,7 @@ describe('玩法下拉', () => {
       '➕ 算式',
       '🚌 坐车',
       '⚖️ 跷跷板',
-      '🥣 盖碗',
+      '🐭 小老鼠',
     ])
     expect(select.value).toBe('practice')
     expect(select.options[select.selectedIndex]?.textContent?.trim()).toBe('➕ 算式')
@@ -54,7 +54,7 @@ describe('玩法下拉', () => {
     const bowl = mountSwitch('bowl')
     const bowlSelect = bowl.el.querySelector('[data-play-switch]') as HTMLSelectElement
     expect(bowlSelect.value).toBe('bowl')
-    expect(bowlSelect.options[bowlSelect.selectedIndex]?.textContent?.trim()).toBe('🥣 盖碗')
+    expect(bowlSelect.options[bowlSelect.selectedIndex]?.textContent?.trim()).toBe('🐭 小老鼠')
     bowl.vueApp.unmount()
   })
 })

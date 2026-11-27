@@ -9,15 +9,16 @@
 - `src/storage/playSnapshot.ts` 校验并规范化可恢复对局（含 `seesaw`/`bowl`）；算术 `stickerId`、坐车/跷跷板/盖碗贴纸可选；旧算术 emoji 保留；非法贴纸 ID 忽略，只降级奖励
 - `src/logic/stickerPool.ts`：25 个 ID 洗牌袋，发完才重洗；`public/stickers/sticker-*.svg` 独立资源，经 `base` 引用，不内嵌、不进 zip
 - `src/logic/appVersion.ts` / `src/composables/useAppVersions.ts` 用构建常量 `__APP_VERSION__` 和远端 `versions.json` 比较
-- `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板 / 盖碗状态机；新开算式局才用 `stats.rangeMax`，`setRangeMax` 只写设置不重开当前局；坐车/跷跷板/盖碗 `makeRound()` / 坐车路线仍固定 10 以内，不读这个设置。`switchPlay` 四玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确 `level`/`cheer` 快照已到下一题 idle，错误 `hold` 快照为原题 idle；盖碗开场 `bounce`/`cover` 只在内存播放，磁盘永远是已扣好 idle；正确 `cheer` 快照已到下一题 idle 或完成页，错误 `shake` 快照为原题 idle 且输入已清；切走会 flush 开场与对错动画收尾，再切回不重播开场；`prefers-reduced-motion` 跳过跳动与扣碗，直接 idle，对错仍显示静态对勾/箭头并停留同样时长
-- `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上原生 select，选项「➕ 算式 / 🚌 坐车 / ⚖️ 跷跷板 / 🥣 盖碗」，value 仍是 practice/bus/seesaw/bowl；设置页无下拉，仍显示静态「设置」
+- `src/session/appSession.ts` 练习 / 完成 / 设置 / 坐车 / 跷跷板 / 盖碗状态机；新开算式局才用 `stats.rangeMax`，`setRangeMax` 只写设置不重开当前局；坐车/跷跷板/盖碗 `makeRound()` / 坐车路线仍固定 10 以内，不读这个设置。`switchPlay` 四玩法互切，已完成回对应完成页不新开；坐车动画磁盘快照为已抵达的下一题 idle；跷跷板正确 `level`/`cheer` 快照已到下一题 idle，错误 `hold` 快照为原题 idle；盖碗/小老鼠开场 `bounce`/`cover` 只在内存播放，磁盘永远是已装好 idle；正确 `cheer` 快照已到下一题 idle 或完成页，错误 `shake` 快照为原题 idle 且输入已清；切走会 flush 开场与对错动画收尾，再切回不重播开场；`prefers-reduced-motion` 跳过跳动与装袋，直接 idle（输入在袋旁），对错仍显示静态对勾/箭头并停留同样时长
+- `src/logic/playKind.ts` / `src/components/playSwitch.vue`：左上原生 select，选项「➕ 算式 / 🚌 坐车 / ⚖️ 跷跷板 / 🐭 小老鼠」，value 仍是 practice/bus/seesaw/bowl；设置页无下拉，仍显示静态「设置」
 - `src/logic/seesawProblem.ts` / `seesawMove.ts`：复用 `makeRound`，□=`b`；左盘开题=`a`（存档字段仍叫 `play.right`，idle 原点必须是 a），右盘固定=`answer`；确认后左盘整批 `a±□`；倾角 `(right-left)*7` 夹在 ±28°；正确 `level` 420ms 回平后 `cheer` 1000ms 再下一题，错误停实际倾角 `hold` 800ms 再还原；磁盘快照把 `level`/`cheer` 收成下一题 idle，`hold` 收成原题 idle
-- `src/logic/bowlProblem.ts` / `bowlMove.ts`：复用 `makeRound`，□=`b`；加法明盘=`a`、总数=`answer`，减法明盘=`answer`、总数=`a`，碗里永远是 b。内存开场 `bounce` 1000ms 后 `cover` 700ms 整团扣走，结束后才可确认；`intro` 不落盘。选数不揭盖不预演；正确揭盖两边跳 1000ms 后下一题，错误不揭盖晃 800ms 后清空输入；点大数字只朗读总数；旧 v4 无 intro 字段读成已扣好 idle
+- `src/logic/bowlProblem.ts` / `bowlMove.ts`：复用 `makeRound`，□=`b`；加法明盘=`a`、总数=`answer`，减法明盘=`answer`、总数=`a`，袋里永远是 b。内存开场 `bounce` 1000ms 后 `cover` 700ms 整团装进袋子，结束后才可确认；`intro` 不落盘。选数不揭袋不预演；正确揭袋两边跳 1000ms 后下一题，错误不揭袋晃 800ms 后清空输入；点大数字只朗读总数；旧 v4 无 intro 字段读成已装好 idle。存档字段仍是 `bowl` / `bowlComplete`，不升 v5
+- `src/components/bowlStage.vue` / `bowlView.vue`：老鼠+小袋子 SVG；idle 后输入靠袋旁，键盘仍在底部；开场/装走期间不显示输入
 - `src/logic/busRoute.ts` / `busMove.ts`：可解 10 题、当站撤回、发车少/多、四类错误方向；正确发车 `leave` 420ms 驶离后换题，再 `enter` 420ms 驶入；第 10 题只驶出；`prefers-reduced-motion` 用 360ms 车灯闪而不位移
 - 坐车、跷跷板、盖碗进度与算术共用 `progressLabel.vue`，文案「第 x / 10 题」；不再用地标路线条
 - 390 窄屏车头在车顶右侧（挡风玻璃），车灯在保险杠，轮子压在车身下沿，不占第五列座位、不靠裁切藏车头
-- `src/views/` 算术、完成、设置、坐车、跷跷板、盖碗（儿童主流程少字，靠盘面数量和倾角）；设置内页签「题目」「更新」；题目页「算式范围」数字框 +「以内」，说明只作用于普通算式
-- `src/components/` 键盘、积木、进度、贴纸卡、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、盖碗笑脸豆子与舞台、玩法下拉；完成页共用 `stickerCard` 显示 25 款 SVG（旧算术完成页可仍显示当时的 emoji）；答对/答错反馈是 CSS/SVG 对勾、星光、重试箭头与轻晃，无新位图，`pointer-events: none`
+- `src/views/` 算术、完成、设置、坐车、跷跷板、小老鼠/盖碗（儿童主流程少字，靠盘面数量和倾角）；设置内页签「题目」「更新」；题目页「算式范围」数字框 +「以内」，说明只作用于普通算式
+- `src/components/` 键盘、积木、进度、贴纸卡、车票、动物脸、巴士、数量帮助、更新框、跷跷板梁与苹果、小老鼠袋子与笑脸豆子舞台、玩法下拉；完成页共用 `stickerCard` 显示 25 款 SVG（旧算术完成页可仍显示当时的 emoji）；答对/答错反馈是 CSS/SVG 对勾、星光、重试箭头与轻晃，无新位图，`pointer-events: none`
 - 动物 / 巴士 / 路线 / 车票 / 跷跷板用 Vue+SVG/CSS，与游戏页同一组件；完成页再玩为文字或图形按钮，奖励图为独立 SVG 贴纸，无贴纸 PNG
 - `src/composables/useInstallPrompt.ts` 缓存 `beforeinstallprompt`，不注册 Service Worker
 - `public/manifest.webmanifest` 与 `public/icons/`：添加到主屏幕 / standalone；图标 `purpose` 仅为 `any`

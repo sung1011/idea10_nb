@@ -9,6 +9,7 @@ const props = defineProps<{
   open: boolean
   motion: string
   intro: BowlIntro
+  input: string
 }>()
 
 const emit = defineEmits<{
@@ -31,6 +32,10 @@ function lidState() {
 
 function showTakeCluster() {
   return !props.open && (props.intro === 'bounce' || props.intro === 'cover')
+}
+
+function showInput() {
+  return props.intro === '' && !props.open
 }
 </script>
 
@@ -68,20 +73,61 @@ function showTakeCluster() {
         />
       </div>
     </div>
-    <div class="bowl" :class="{ shake: motion === 'shake', enter: intro === 'cover' }" data-lid>
-      <svg class="pot" viewBox="0 0 88 72" aria-hidden="true">
-        <ellipse cx="44" cy="18" rx="30" ry="10" fill="#d9a066" stroke="#3b2a1a" stroke-width="3" />
+    <div
+      class="bag-side"
+      :class="{ shake: motion === 'shake', enter: intro === 'cover' }"
+      data-lid
+      data-mouse
+    >
+      <svg class="mouse" viewBox="0 0 72 54" aria-hidden="true">
+        <ellipse cx="16" cy="16" rx="8" ry="10" fill="#e4d5c3" stroke="#3b2a1a" stroke-width="2.2" />
+        <ellipse cx="16" cy="17" rx="4.2" ry="5.6" fill="#f2b6b0" />
+        <ellipse cx="40" cy="16" rx="8" ry="10" fill="#e4d5c3" stroke="#3b2a1a" stroke-width="2.2" />
+        <ellipse cx="40" cy="17" rx="4.2" ry="5.6" fill="#f2b6b0" />
+        <ellipse cx="28" cy="30" rx="16" ry="14" fill="#efe4d6" stroke="#3b2a1a" stroke-width="2.4" />
+        <ellipse cx="28" cy="36" rx="7.5" ry="5.5" fill="#fff6ea" stroke="#3b2a1a" stroke-width="1.4" />
+        <ellipse cx="28" cy="34.2" rx="2.1" ry="1.5" fill="#e76f51" />
+        <circle cx="21.5" cy="28" r="2.05" fill="#3b2a1a" />
+        <circle cx="34.5" cy="28" r="2.05" fill="#3b2a1a" />
+        <circle cx="22.1" cy="27.4" r="0.65" fill="#fff" />
+        <circle cx="35.1" cy="27.4" r="0.65" fill="#fff" />
         <path
-          d="M14 20 c2 28 18 42 30 42 c12 0 28-14 30-42"
-          fill="#c9844a"
+          d="M23 39 q5 3.4 10 0"
+          fill="none"
           stroke="#3b2a1a"
-          stroke-width="3"
+          stroke-width="1.6"
+          stroke-linecap="round"
         />
-        <path d="M22 28 c8 18 36 18 44 0" fill="none" stroke="#fff4e4" stroke-width="2" opacity="0.35" />
+        <path
+          d="M44 38 q16 4 22 14"
+          fill="none"
+          stroke="#3b2a1a"
+          stroke-width="2.2"
+          stroke-linecap="round"
+        />
       </svg>
-      <span v-if="!open" class="guess" aria-hidden="true">?</span>
-      <div v-if="open" class="inside" data-revealed :data-count="hidden">
-        <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" :tone="1" class="jumper" />
+      <div class="bag-row">
+        <div class="sack" data-sack>
+          <svg class="sack-art" viewBox="0 0 72 64" aria-hidden="true">
+            <ellipse cx="36" cy="12" rx="18" ry="7" fill="#c9844a" stroke="#3b2a1a" stroke-width="2.4" />
+            <path
+              d="M16 14 L20 56 Q36 64 52 56 L56 14"
+              fill="#d9a066"
+              stroke="#3b2a1a"
+              stroke-width="2.6"
+              stroke-linejoin="round"
+            />
+            <path d="M22 24 q14 8 28 0" fill="none" stroke="#fff4e4" stroke-width="2" opacity="0.4" />
+            <path d="M27 8 q9 -8 18 0" fill="none" stroke="#3b2a1a" stroke-width="2.2" stroke-linecap="round" />
+          </svg>
+          <span v-if="!open" class="guess" aria-hidden="true">?</span>
+          <div v-if="open" class="inside" data-revealed :data-count="hidden">
+            <bowl-bean v-for="item in dots(hidden)" :key="`h${item}`" :tone="1" class="jumper" />
+          </div>
+        </div>
+        <p v-if="showInput()" class="eq" data-bag-input aria-live="polite">
+          <span class="blank">{{ input || '?' }}</span>
+        </p>
       </div>
     </div>
     <button
@@ -135,17 +181,18 @@ function showTakeCluster() {
 .stage {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 10px;
   align-items: end;
-  min-height: 176px;
+  min-height: 196px;
   padding-bottom: 8px;
 }
 
 .pile,
-.bowl {
+.bag-side {
   position: relative;
-  min-height: 118px;
+  min-height: 132px;
+  min-width: 0;
   border: 3px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
@@ -184,32 +231,60 @@ function showTakeCluster() {
   animation: scoop 0.7s ease-in forwards;
 }
 
-.bowl {
-  overflow: hidden;
+.bag-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 6px 6px 8px;
   z-index: 1;
 }
 
-.stage[data-intro='bounce'] .bowl {
+.stage[data-intro='bounce'] .bag-side {
   opacity: 0;
   transform: translate(28%, -72%);
 }
 
-.stage[data-intro='cover'] .bowl {
+.stage[data-intro='cover'] .bag-side {
   animation: land 0.7s ease-out forwards;
 }
 
-.pot {
+.mouse {
   display: block;
+  width: 72px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.bag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   width: 100%;
-  height: 78px;
+}
+
+.sack {
+  position: relative;
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.sack-art {
+  display: block;
+  width: 72px;
+  height: 64px;
 }
 
 .guess {
   position: absolute;
   left: 50%;
-  top: 42%;
+  top: 54%;
   transform: translate(-50%, -50%);
-  font-size: 2rem;
+  font-size: 1.7rem;
   font-weight: 800;
   line-height: 1;
   color: #3b2a1a;
@@ -218,7 +293,23 @@ function showTakeCluster() {
 
 .inside {
   position: absolute;
-  inset: 28px 8px 8px;
+  inset: 22px 8px 8px;
+}
+
+.eq {
+  margin: 0;
+  min-width: 0;
+}
+
+.blank {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 4px;
+  border-bottom: 5px solid var(--line);
+  font-size: clamp(1.5rem, 7vw, 2.2rem);
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.1;
 }
 
 .total {
@@ -235,7 +326,7 @@ function showTakeCluster() {
   line-height: 1;
 }
 
-.bowl.shake {
+.bag-side.shake {
   animation: shake 0.2s ease-in-out 4;
 }
 
@@ -365,18 +456,18 @@ function showTakeCluster() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bowl.shake,
+  .bag-side.shake,
   .stage[data-intro='bounce'] .jumper,
   .stage[data-motion='cheer'] .jumper,
   .take.scoop,
-  .stage[data-intro='cover'] .bowl,
+  .stage[data-intro='cover'] .bag-side,
   .mark,
   .spark {
     animation: none;
   }
 
-  .stage[data-intro='bounce'] .bowl,
-  .stage[data-intro='cover'] .bowl {
+  .stage[data-intro='bounce'] .bag-side,
+  .stage[data-intro='cover'] .bag-side {
     opacity: 1;
     transform: none;
   }
