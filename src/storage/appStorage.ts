@@ -3,7 +3,7 @@ import { parseStickerBag, type StickerId } from '../logic/stickerPool'
 import { parsePlay, type PlaySnapshot } from './playSnapshot'
 
 export const STORAGE_KEY = 'idea10Nb.v1'
-export const STORAGE_VERSION = 3
+export const STORAGE_VERSION = 4
 
 export type SaveData = {
   version: typeof STORAGE_VERSION
@@ -19,6 +19,9 @@ export type SaveData = {
   seesawRoundsCompleted: number
   seesawFirstTryCorrect: number
   seesawHintCount: number
+  bowlRoundsCompleted: number
+  bowlFirstTryCorrect: number
+  bowlHintCount: number
   stickerBag: StickerId[]
   stickerBagNext: number
   play: PlaySnapshot | null
@@ -38,6 +41,9 @@ export const DEFAULT_SAVE: SaveData = {
   seesawRoundsCompleted: 0,
   seesawFirstTryCorrect: 0,
   seesawHintCount: 0,
+  bowlRoundsCompleted: 0,
+  bowlFirstTryCorrect: 0,
+  bowlHintCount: 0,
   stickerBag: [],
   stickerBagNext: 0,
   play: null,
@@ -83,6 +89,9 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
   const seesawRoundsCompleted = rec.seesawRoundsCompleted == null ? 0 : nonNegInt(rec.seesawRoundsCompleted)
   const seesawFirstTryCorrect = rec.seesawFirstTryCorrect == null ? 0 : nonNegInt(rec.seesawFirstTryCorrect)
   const seesawHintCount = rec.seesawHintCount == null ? 0 : nonNegInt(rec.seesawHintCount)
+  const bowlRoundsCompleted = rec.bowlRoundsCompleted == null ? 0 : nonNegInt(rec.bowlRoundsCompleted)
+  const bowlFirstTryCorrect = rec.bowlFirstTryCorrect == null ? 0 : nonNegInt(rec.bowlFirstTryCorrect)
+  const bowlHintCount = rec.bowlHintCount == null ? 0 : nonNegInt(rec.bowlHintCount)
   const bag = parseStickerBag(rec.stickerBag, rec.stickerBagNext)
   if (
     busTripsCompleted == null ||
@@ -91,7 +100,10 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
     busHintCount == null ||
     seesawRoundsCompleted == null ||
     seesawFirstTryCorrect == null ||
-    seesawHintCount == null
+    seesawHintCount == null ||
+    bowlRoundsCompleted == null ||
+    bowlFirstTryCorrect == null ||
+    bowlHintCount == null
   ) {
     return null
   }
@@ -108,6 +120,9 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
     seesawRoundsCompleted,
     seesawFirstTryCorrect,
     seesawHintCount,
+    bowlRoundsCompleted,
+    bowlFirstTryCorrect,
+    bowlHintCount,
     stickerBag: bag.order,
     stickerBagNext: bag.next,
   }
@@ -116,7 +131,7 @@ function parseStats(rec: Record<string, unknown>): Omit<SaveData, 'play' | 'vers
 export function parseSave(raw: unknown): SaveData | null {
   if (!raw || typeof raw !== 'object') return null
   const rec = raw as Record<string, unknown>
-  if (rec.version !== 1 && rec.version !== 2 && rec.version !== 3) return null
+  if (rec.version !== 1 && rec.version !== 2 && rec.version !== 3 && rec.version !== 4) return null
   if (typeof rec.version === 'number' && rec.version > STORAGE_VERSION) return null
   const stats = parseStats(rec)
   if (!stats) return null

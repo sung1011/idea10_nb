@@ -36,7 +36,7 @@ function playSwitch(el: HTMLElement) {
   return found
 }
 
-function selectPlay(el: HTMLElement, kind: 'practice' | 'bus' | 'seesaw') {
+function selectPlay(el: HTMLElement, kind: 'practice' | 'bus' | 'seesaw' | 'bowl') {
   const sel = playSwitch(el)
   sel.value = kind
   sel.dispatchEvent(new Event('change', { bubbles: true }))
@@ -206,6 +206,7 @@ describe('界面响应', () => {
     expect(el.textContent).toContain('坐车次数 0')
     expect(el.textContent).toContain('独立完成 0')
     expect(el.textContent).toContain('跷跷板次数 0')
+    expect(el.textContent).toContain('盖碗次数 0')
     vueApp.unmount()
     const again = mountApp()
     await nextTick()
@@ -256,8 +257,13 @@ describe('界面响应', () => {
     await nextTick()
     const home = playSwitch(el)
     expect(home.value).toBe('practice')
-    expect([...home.options].map((item) => item.value)).toEqual(['practice', 'bus', 'seesaw'])
-    expect([...home.options].map((item) => item.textContent?.trim())).toEqual(['➕ 算式', '🚌 坐车', '⚖️ 跷跷板'])
+    expect([...home.options].map((item) => item.value)).toEqual(['practice', 'bus', 'seesaw', 'bowl'])
+    expect([...home.options].map((item) => item.textContent?.trim())).toEqual([
+      '➕ 算式',
+      '🚌 坐车',
+      '⚖️ 跷跷板',
+      '🥣 盖碗',
+    ])
     expect(home.options[home.selectedIndex]?.textContent?.trim()).toBe('➕ 算式')
     expect(el.querySelector('[data-go-bus]')).toBeFalsy()
     expect(el.querySelector('[data-go-seesaw]')).toBeFalsy()
@@ -282,6 +288,13 @@ describe('界面响应', () => {
     expect(el.querySelector('[data-pan="left"]')?.getAttribute('data-count')).toBe(left)
     expect(el.querySelector('[data-pan="right"]')?.getAttribute('data-count')).toBe(right)
     expect(el.querySelector('[data-seesaw]')?.getAttribute('data-tilt')).toBe(tilt)
+    selectPlay(el, 'bowl')
+    await nextTick()
+    expect(playSwitch(el).value).toBe('bowl')
+    expect(playSwitch(el).options[playSwitch(el).selectedIndex]?.textContent?.trim()).toBe('🥣 盖碗')
+    expect(el.querySelector('[data-bowl]')).toBeTruthy()
+    expect(el.querySelector('[data-bowl]')?.getAttribute('data-lid')).toBe('closed')
+    expect(el.querySelector('[data-progress]')?.textContent).toBe('第 1 / 10 题')
     selectPlay(el, 'bus')
     await nextTick()
     expect(playSwitch(el).value).toBe('bus')

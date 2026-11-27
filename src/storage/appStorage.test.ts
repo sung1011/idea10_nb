@@ -41,7 +41,7 @@ describe('parseSave', () => {
         play: null,
       }),
     ).toEqual({
-      version: 3,
+      version: 4,
       mode: 'add',
       roundsCompleted: 2,
       firstTryCorrect: 8,
@@ -54,15 +54,18 @@ describe('parseSave', () => {
       seesawRoundsCompleted: 0,
       seesawFirstTryCorrect: 0,
       seesawHintCount: 0,
+      bowlRoundsCompleted: 0,
+      bowlFirstTryCorrect: 0,
+      bowlHintCount: 0,
       stickerBag: [],
       stickerBagNext: 0,
       play: null,
     })
   })
 
-  it('旧 v1 统计仍可读并升为 v3，对局为空', () => {
+  it('旧 v1 统计仍可读并升为 v4，对局为空', () => {
     expect(parseSave(v1Stats())).toEqual({
-      version: 3,
+      version: 4,
       mode: 'mix',
       roundsCompleted: 12,
       firstTryCorrect: 48,
@@ -75,6 +78,9 @@ describe('parseSave', () => {
       seesawRoundsCompleted: 0,
       seesawFirstTryCorrect: 0,
       seesawHintCount: 0,
+      bowlRoundsCompleted: 0,
+      bowlFirstTryCorrect: 0,
+      bowlHintCount: 0,
       stickerBag: [],
       stickerBagNext: 0,
       play: null,
@@ -93,7 +99,7 @@ describe('parseSave', () => {
   it('损坏或更高版本返回 null', () => {
     expect(parseSave('{')).toBeNull()
     expect(parseSave({ version: 2, mode: 'mix' })).toBeNull()
-    expect(parseSave({ ...DEFAULT_SAVE, version: 4 })).toBeNull()
+    expect(parseSave({ ...DEFAULT_SAVE, version: 5 })).toBeNull()
     expect(parseSave({ ...DEFAULT_SAVE, mode: 'times' })).toBeNull()
     expect(parseSave({ ...DEFAULT_SAVE, roundsCompleted: -1 })).toBeNull()
   })
@@ -133,6 +139,51 @@ describe('parseSave', () => {
     expect(parsed?.play?.bus?.trip.stations).toHaveLength(10)
     expect(parsed?.play?.bus?.seats).toHaveLength(10)
     expect(parsed?.play?.seesaw).toBeNull()
+  })
+
+  it('v3 完好三局升 v4，缺盖碗字段当 0 且不丢进度', () => {
+    const problems = makeRound('mix', 10, mulberry32(21))
+    const bus = createBusPlay(makeBusTrip(mulberry32(22)))
+    const parsed = parseSave({
+      version: 3,
+      mode: 'mix',
+      roundsCompleted: 2,
+      firstTryCorrect: 6,
+      hintUsed: 1,
+      stickerCount: 2,
+      busTripsCompleted: 1,
+      busSoloCompleted: 0,
+      busAdjustCount: 3,
+      busHintCount: 1,
+      seesawRoundsCompleted: 1,
+      seesawFirstTryCorrect: 8,
+      seesawHintCount: 2,
+      stickerBag: [],
+      stickerBagNext: 0,
+      play: {
+        view: 'practice',
+        practice: livePractice({
+          ...emptyPractice('mix', problems),
+          index: 3,
+          input: '4',
+        }),
+        bus,
+        seesaw: null,
+      },
+    })
+    expect(parsed?.version).toBe(4)
+    expect(parsed?.play?.practice.index).toBe(3)
+    expect(parsed?.play?.practice.input).toBe('4')
+    expect(parsed?.play?.bus?.trip.stations).toHaveLength(10)
+    expect(parsed?.play?.bowl).toBeNull()
+    expect(parsed?.bowlRoundsCompleted).toBe(0)
+    expect(parsed?.seesawRoundsCompleted).toBe(1)
+  })
+
+  it('按 0.6.10 的 v3 规则读 v4 档会失败，不能当可写', () => {
+    const v4 = { ...DEFAULT_SAVE, version: 4, roundsCompleted: 6 }
+    expect(v4.version === 1 || v4.version === 2 || v4.version === 3).toBe(false)
+    expect(parseSave(v4)?.version).toBe(4)
   })
 
   it('跷跷板坏则丢掉跷跷板，保留算术坐车和统计', () => {
@@ -175,7 +226,7 @@ describe('load / write / reset', () => {
   })
 
   it('更高版本不覆盖', () => {
-    const raw = JSON.stringify({ ...DEFAULT_SAVE, version: 4, roundsCompleted: 9 })
+    const raw = JSON.stringify({ ...DEFAULT_SAVE, version: 5, roundsCompleted: 9 })
     const storage = memoryStorage({ [STORAGE_KEY]: raw })
     const loaded = loadSave(storage)
     expect(loaded.writable).toBe(false)

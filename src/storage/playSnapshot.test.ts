@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { arriveNext, createBusPlay, depart, onboardCount, tapSeat, tapWaiting } from '../logic/busMove'
 import { makeBusTrip } from '../logic/busRoute'
 import { makeRound, mulberry32 } from '../logic/makeProblem'
+import { createBowlPlay } from '../logic/bowlMove'
 import { createSeesawPlay } from '../logic/seesawMove'
 import { busForDisk, emptyPractice, livePractice, parsePlay } from './playSnapshot'
 
@@ -97,6 +98,7 @@ describe('parsePlay', () => {
     expect(parsed?.bus?.trip.startCount).toBe(bus.trip.startCount)
     expect(parsed?.bus?.seats).toEqual(bus.seats)
     expect(parsed?.seesaw).toBeNull()
+    expect(parsed?.bowl).toBeNull()
   })
 
   it('跷跷板 roundtrip；完成标记不一致时保另两局', () => {
@@ -185,5 +187,38 @@ describe('parsePlay', () => {
     expect(parsed?.bus?.settled).toBe(true)
     expect(parsed?.seesaw?.index).toBe(0)
     expect(parsed?.view).toBe('complete')
+  })
+
+  it('盖碗 roundtrip；坏盖碗只退回算式，坐车仍在', () => {
+    const problems = makeRound('mix', 10, mulberry32(15))
+    const bus = createBusPlay(makeBusTrip(mulberry32(16)))
+    const bowl = createBowlPlay(problems)
+    bowl.input = '5'
+    const snapshot = {
+      view: 'bowl' as const,
+      practice: emptyPractice('mix', problems, '🍀'),
+      bus,
+      seesaw: createSeesawPlay(problems),
+      bowl,
+    }
+    const parsed = parsePlay(JSON.parse(JSON.stringify(snapshot)), 'mix')
+    expect(parsed?.view).toBe('bowl')
+    expect(parsed?.bowl?.input).toBe('5')
+    expect(parsed?.bus?.trip.startCount).toBe(bus.trip.startCount)
+    expect(parsed?.seesaw?.problems).toHaveLength(10)
+    const broken = JSON.parse(JSON.stringify(snapshot)) as { view: string; bowl: unknown }
+    broken.bowl = { broken: true }
+    const kept = parsePlay(broken, 'mix')
+    expect(kept?.view).toBe('practice')
+    expect(kept?.bowl).toBeNull()
+    expect(kept?.practice.problems).toHaveLength(10)
+    expect(kept?.bus).toBeTruthy()
+    expect(kept?.seesaw).toBeTruthy()
+    const badSticker = JSON.parse(JSON.stringify(snapshot)) as { bowlSticker: unknown }
+    badSticker.bowlSticker = 'not-a-sticker'
+    const degraded = parsePlay(badSticker, 'mix')
+    expect(degraded?.bowlSticker).toBeUndefined()
+    expect(degraded?.bowl?.index).toBe(0)
+    expect(degraded?.bus).toBeTruthy()
   })
 })

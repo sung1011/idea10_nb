@@ -7,6 +7,8 @@ import playSwitch from './components/playSwitch.vue'
 import { playKindOf } from './logic/playKind'
 import { displayStickerId } from './logic/stickerPool'
 import { createAppSession } from './session/appSession'
+import bowlCompleteView from './views/bowlCompleteView.vue'
+import bowlView from './views/bowlView.vue'
 import busCompleteView from './views/busCompleteView.vue'
 import busView from './views/busView.vue'
 import completeView from './views/completeView.vue'
@@ -33,6 +35,7 @@ const playKind = computed(() => playKindOf(state.view))
 const mathStickerId = computed(() => displayStickerId(state.stickerId, false))
 const busStickerId = computed(() => displayStickerId(state.busSticker, true))
 const seesawStickerId = computed(() => displayStickerId(state.seesawSticker, true))
+const bowlStickerId = computed(() => displayStickerId(state.bowlSticker, true))
 const reducedMotion = computed(
   () =>
     typeof window !== 'undefined' &&
@@ -139,6 +142,21 @@ onUnmounted(() => {
       @again="session.anotherSeesaw"
     />
 
+    <bowl-view
+      v-else-if="state.view === 'bowl' && state.bowl"
+      :play="state.bowl"
+      @digit="session.bowlTapDigit"
+      @del="session.bowlTapDelete"
+      @confirm="session.bowlTapConfirm"
+      @help="session.bowlHelp"
+    />
+
+    <bowl-complete-view
+      v-else-if="state.view === 'bowlComplete'"
+      :sticker-id="bowlStickerId"
+      @again="session.anotherBowl"
+    />
+
     <parent-settings-view
       v-else-if="state.view === 'settings'"
       :mode="state.mode"
@@ -152,6 +170,9 @@ onUnmounted(() => {
       :seesaw-rounds-completed="state.stats.seesawRoundsCompleted"
       :seesaw-first-try-correct="state.stats.seesawFirstTryCorrect"
       :seesaw-hint-count="state.stats.seesawHintCount"
+      :bowl-rounds-completed="state.stats.bowlRoundsCompleted"
+      :bowl-first-try-correct="state.stats.bowlFirstTryCorrect"
+      :bowl-hint-count="state.stats.bowlHintCount"
       :storage-message="state.storageMessage"
       :reset-confirming="state.resetConfirming"
       :build-version="versions.buildVersion"

@@ -18,6 +18,21 @@ import {
   type BusPlay,
 } from '../logic/busMove'
 import { makeBusTrip } from '../logic/busRoute'
+import {
+  arriveBowlNext,
+  BOWL_CELEBRATE_MS,
+  BOWL_SHAKE_MS,
+  bowlForDisk,
+  confirmBowl,
+  createBowlPlay,
+  hasBowlProgress,
+  restoreBowl,
+  tapBowlDelete,
+  tapBowlDigit,
+  tapBowlHelp,
+  type BowlPlay,
+} from '../logic/bowlMove'
+import { bowlTotal } from '../logic/bowlProblem'
 import { isCorrect, makeRound, ROUND_SIZE, type Mode, type Problem } from '../logic/makeProblem'
 import { playKindOf, type PlayKind } from '../logic/playKind'
 import {
@@ -65,10 +80,29 @@ import {
   type PlaySnapshot,
 } from '../storage/playSnapshot'
 
-export type View = 'practice' | 'complete' | 'settings' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
+export type View =
+  | 'practice'
+  | 'complete'
+  | 'settings'
+  | 'bus'
+  | 'busComplete'
+  | 'seesaw'
+  | 'seesawComplete'
+  | 'bowl'
+  | 'bowlComplete'
 
 export const STICKERS = LEGACY_STICKER_EMOJIS
-export { DEFAULT_STICKER_ID, BUS_ENTER_MS, BUS_FLASH_MS, BUS_LEAVE_MS, SEESAW_CELEBRATE_MS, SEESAW_HOLD_MS, SEESAW_LEVEL_MS }
+export {
+  DEFAULT_STICKER_ID,
+  BUS_ENTER_MS,
+  BUS_FLASH_MS,
+  BUS_LEAVE_MS,
+  SEESAW_CELEBRATE_MS,
+  SEESAW_HOLD_MS,
+  SEESAW_LEVEL_MS,
+  BOWL_CELEBRATE_MS,
+  BOWL_SHAKE_MS,
+}
 
 export type AppState = {
   view: View
@@ -94,9 +128,11 @@ export type AppState = {
   stickerId: StickerId | ''
   busSticker: StickerId | ''
   seesawSticker: StickerId | ''
+  bowlSticker: StickerId | ''
   stickerBag: StickerBag
   bus: BusPlay | null
   seesaw: SeesawPlay | null
+  bowl: BowlPlay | null
 }
 
 export function hasRoundProgress(state: AppState): boolean {
@@ -112,7 +148,12 @@ export function hasRoundProgress(state: AppState): boolean {
 }
 
 export function hasBusyProgress(state: AppState): boolean {
-  return hasRoundProgress(state) || playHasProgress(state.bus) || hasSeesawProgress(state.seesaw)
+  return (
+    hasRoundProgress(state) ||
+    playHasProgress(state.bus) ||
+    hasSeesawProgress(state.seesaw) ||
+    hasBowlProgress(state.bowl)
+  )
 }
 
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -146,6 +187,7 @@ export function createAppSession(
   const loaded = loadSave(storage)
   let busTimer = 0
   let seesawTimer = 0
+  let bowlTimer = 0
   let hydrated = false
   const synthOf = () =>
     options.synth !== undefined
@@ -153,7 +195,7 @@ export function createAppSession(
       : wrapBrowserSynth(typeof window !== 'undefined' ? window.speechSynthesis : null)
 
   const statsOnly = (data: SaveData): SaveData => ({
-    version: 3,
+    version: 4,
     mode: data.mode,
     roundsCompleted: data.roundsCompleted,
     firstTryCorrect: data.firstTryCorrect,
@@ -166,6 +208,9 @@ export function createAppSession(
     seesawRoundsCompleted: data.seesawRoundsCompleted ?? 0,
     seesawFirstTryCorrect: data.seesawFirstTryCorrect ?? 0,
     seesawHintCount: data.seesawHintCount ?? 0,
+    bowlRoundsCompleted: data.bowlRoundsCompleted ?? 0,
+    bowlFirstTryCorrect: data.bowlFirstTryCorrect ?? 0,
+    bowlHintCount: data.bowlHintCount ?? 0,
     stickerBag: data.stickerBag ?? [],
     stickerBagNext: data.stickerBagNext ?? 0,
     play: data.play ?? null,
@@ -195,9 +240,11 @@ export function createAppSession(
     stickerId: '',
     busSticker: '',
     seesawSticker: '',
+    bowlSticker: '',
     stickerBag: parseStickerBag(loaded.data.stickerBag, loaded.data.stickerBagNext),
     bus: null,
     seesaw: null,
+    bowl: null,
   })
 
   function clearBusTimer() {
@@ -214,6 +261,13 @@ export function createAppSession(
     }
   }
 
+  function clearBowlTimer() {
+    if (bowlTimer) {
+      cancelDelay(bowlTimer)
+      bowlTimer = 0
+    }
+  }
+
   function buildPlay(): PlaySnapshot {
     const pendingMode =
       state.view === 'settings' &&
@@ -223,12 +277,12 @@ export function createAppSession(
     const view = gameViewFrom(
       pendingMode && (opened === 'complete' || opened === 'practice')
         ? 'practice'
-        : pendingMode && opened === 'seesawComplete'
-          ? 'seesaw'
+        : pendingMode && (opened === 'bowlComplete' || opened === 'bowl')
+          ? 'bowl'
           : state.view,
-      pendingMode && (opened === 'complete' || opened === 'seesawComplete')
-        ? opened === 'seesawComplete'
-          ? 'seesaw'
+      pendingMode && (opened === 'complete' || opened === 'bowlComplete')
+        ? opened === 'bowlComplete'
+          ? 'bowl'
           : 'practice'
         : opened,
       pendingMode ? false : state.settled,
@@ -236,18 +290,23 @@ export function createAppSession(
     const practice = pendingMode
       ? emptyPractice(state.mode, makeRound(state.mode, ROUND_SIZE, rng), state.stickerEmoji)
       : livePractice(state)
-    const seesaw = pendingMode
-      ? createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
-      : state.seesaw
-        ? seesawForDisk(state.seesaw)
+    const seesaw = state.seesaw ? seesawForDisk(state.seesaw) : null
+    const bowl = pendingMode
+      ? state.bowl
+        ? createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+        : null
+      : state.bowl
+        ? bowlForDisk(state.bowl)
         : null
     return {
       view,
       practice,
       bus: state.bus ? busForDisk(state.bus) : null,
       seesaw,
+      bowl,
       ...(isStickerId(state.busSticker) ? { busSticker: state.busSticker } : {}),
       ...(isStickerId(state.seesawSticker) ? { seesawSticker: state.seesawSticker } : {}),
+      ...(isStickerId(state.bowlSticker) ? { bowlSticker: state.bowlSticker } : {}),
     }
   }
 
@@ -420,12 +479,54 @@ export function createAppSession(
     persistAll()
   }
 
+  function finishBowl() {
+    const play = state.bowl
+    if (!play || !play.settled || play.accounted) return
+    play.accounted = true
+    state.bowlSticker = awardSticker()
+    state.view = 'bowlComplete'
+    persistAll({
+      ...state.stats,
+      bowlRoundsCompleted: state.stats.bowlRoundsCompleted + 1,
+      bowlFirstTryCorrect: state.stats.bowlFirstTryCorrect + play.firstTryThisRound,
+      bowlHintCount: state.stats.bowlHintCount + play.hintThisRound,
+    })
+  }
+
+  function flushBowlMove() {
+    const play = state.bowl
+    if (!play?.moving) {
+      clearBowlTimer()
+      return
+    }
+    clearBowlTimer()
+    if (play.outcome === 'correct' || play.motion === 'cheer') {
+      const next = arriveBowlNext(play)
+      if (next === 'done') finishBowl()
+      else persistAll()
+      return
+    }
+    restoreBowl(play)
+    persistAll()
+  }
+
+  function startBowl() {
+    clearBowlTimer()
+    state.bowl = createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+    state.bowlSticker = ''
+    cancelSpeech()
+    state.view = 'bowl'
+    persistAll()
+  }
+
   if (loaded.data.play) {
     applyPractice(loaded.data.play.practice)
     state.bus = loaded.data.play.bus
     state.seesaw = loaded.data.play.seesaw
+    state.bowl = loaded.data.play.bowl
     state.busSticker = loaded.data.play.busSticker ?? ''
     state.seesawSticker = loaded.data.play.seesawSticker ?? ''
+    state.bowlSticker = loaded.data.play.bowlSticker ?? ''
     state.view = loaded.data.play.view
   } else {
     startRound(state.mode)
@@ -433,6 +534,7 @@ export function createAppSession(
   hydrated = true
   if (state.bus?.settled && !state.bus.accounted) finishBus()
   if (state.seesaw?.settled && !state.seesaw.accounted) finishSeesaw()
+  if (state.bowl?.settled && !state.bowl.accounted) finishBowl()
 
   function tapDigit(digit: string) {
     if (state.view !== 'practice' || state.locked || state.settled) return
@@ -497,6 +599,7 @@ export function createAppSession(
     cancelSpeech()
     flushBusMove()
     flushSeesawMove()
+    flushBowlMove()
     if (state.view !== 'settings') {
       state.settingsOpenedView = state.view
     }
@@ -513,8 +616,11 @@ export function createAppSession(
     state.settingsOpenedView = null
     state.resetConfirming = false
     if (openedMode != null && openedMode !== state.mode) {
-      clearSeesawTimer()
-      state.seesaw = createSeesawPlay(makeRound(state.mode, ROUND_SIZE, rng))
+      clearBowlTimer()
+      if (state.bowl) {
+        state.bowl = createBowlPlay(makeRound(state.mode, ROUND_SIZE, rng))
+        state.bowlSticker = ''
+      }
       startRound(state.mode)
       if (openedView === 'bus' || openedView === 'busComplete') {
         state.view = openedView
@@ -522,7 +628,12 @@ export function createAppSession(
         return
       }
       if (openedView === 'seesaw' || openedView === 'seesawComplete') {
-        state.view = 'seesaw'
+        state.view = openedView
+        persistAll()
+        return
+      }
+      if (openedView === 'bowl' || openedView === 'bowlComplete') {
+        state.view = 'bowl'
         persistAll()
       }
       return
@@ -533,6 +644,11 @@ export function createAppSession(
       return
     }
     if (openedView === 'seesaw' || openedView === 'seesawComplete') {
+      state.view = openedView
+      persistAll()
+      return
+    }
+    if (openedView === 'bowl' || openedView === 'bowlComplete') {
       state.view = openedView
       persistAll()
       return
@@ -561,6 +677,7 @@ export function createAppSession(
     cancelSpeech()
     flushBusMove()
     flushSeesawMove()
+    flushBowlMove()
     if (state.bus?.settled) {
       state.view = 'busComplete'
       persistAll()
@@ -578,6 +695,7 @@ export function createAppSession(
     cancelSpeech()
     flushBusMove()
     flushSeesawMove()
+    flushBowlMove()
     if (state.settled) {
       state.view = 'complete'
       persistAll()
@@ -591,6 +709,7 @@ export function createAppSession(
     cancelSpeech()
     flushBusMove()
     flushSeesawMove()
+    flushBowlMove()
     if (state.seesaw?.settled) {
       state.view = 'seesawComplete'
       persistAll()
@@ -604,11 +723,30 @@ export function createAppSession(
     persistAll()
   }
 
+  function openBowl() {
+    cancelSpeech()
+    flushBusMove()
+    flushSeesawMove()
+    flushBowlMove()
+    if (state.bowl?.settled) {
+      state.view = 'bowlComplete'
+      persistAll()
+      return
+    }
+    if (!state.bowl) {
+      startBowl()
+      return
+    }
+    state.view = 'bowl'
+    persistAll()
+  }
+
   function switchPlay(kind: PlayKind) {
     if (playKindOf(state.view) === kind) return
     if (kind === 'practice') openPractice()
     else if (kind === 'bus') openBus()
-    else openSeesaw()
+    else if (kind === 'seesaw') openSeesaw()
+    else openBowl()
   }
 
   function anotherBus() {
@@ -619,6 +757,11 @@ export function createAppSession(
   function anotherSeesaw() {
     if (state.view !== 'seesawComplete') return
     startSeesaw()
+  }
+
+  function anotherBowl() {
+    if (state.view !== 'bowlComplete') return
+    startBowl()
   }
 
   function requestReset() {
@@ -639,6 +782,7 @@ export function createAppSession(
     clearAcked(storage)
     clearBusTimer()
     clearSeesawTimer()
+    clearBowlTimer()
     state.writable = true
     state.storageMessage = ''
     state.stats = { ...DEFAULT_SAVE }
@@ -647,9 +791,11 @@ export function createAppSession(
     state.stickerId = ''
     state.busSticker = ''
     state.seesawSticker = ''
+    state.bowlSticker = ''
     state.stickerEmoji = STICKERS[0]
     state.bus = null
     state.seesaw = null
+    state.bowl = null
     cancelSpeech()
     startRound(DEFAULT_SAVE.mode)
   }
@@ -731,8 +877,90 @@ export function createAppSession(
     })
   }
 
+  function withBowl(action: (play: BowlPlay) => void) {
+    const play = state.bowl
+    if (!play || state.view !== 'bowl' || play.settled) return
+    action(play)
+  }
+
+  function bowlTapDigit(digit: string) {
+    withBowl((play) => {
+      if (tapBowlDigit(play, digit)) persistAll()
+    })
+  }
+
+  function bowlTapDelete() {
+    withBowl((play) => {
+      if (tapBowlDelete(play)) persistAll()
+    })
+  }
+
+  function queueBowl(ms: number, fn: () => void) {
+    clearBowlTimer()
+    bowlTimer = delay(() => {
+      bowlTimer = 0
+      fn()
+    }, ms)
+  }
+
+  function runBowlArrive() {
+    const play = state.bowl
+    if (!play?.moving) return
+    const next = arriveBowlNext(play)
+    if (next === 'done') finishBowl()
+    else persistAll()
+  }
+
+  function runBowlRestore() {
+    const play = state.bowl
+    if (!play?.moving) return
+    restoreBowl(play)
+    persistAll()
+  }
+
+  function bowlTapConfirm() {
+    withBowl((play) => {
+      const result = confirmBowl(play)
+      if (result === 'empty' || result === 'locked') return
+      persistAll()
+      if (result === 'correct') {
+        queueBowl(BOWL_CELEBRATE_MS, runBowlArrive)
+        return
+      }
+      queueBowl(BOWL_SHAKE_MS, runBowlRestore)
+    })
+  }
+
+  function bowlHelp() {
+    withBowl((play) => {
+      if (!tapBowlHelp(play)) return
+      persistAll()
+      speakChinese({
+        text: zhCount(bowlTotal(play.problems[play.index]!)),
+        synth: synthOf(),
+      })
+    })
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (isEditableTarget(event.target)) return
+    if (state.view === 'bowl') {
+      if (event.key >= '0' && event.key <= '9') {
+        event.preventDefault()
+        bowlTapDigit(event.key)
+        return
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        bowlTapDelete()
+        return
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        bowlTapConfirm()
+      }
+      return
+    }
     if (state.view === 'seesaw') {
       if (event.key >= '0' && event.key <= '9') {
         event.preventDefault()
@@ -873,6 +1101,7 @@ export function createAppSession(
   function dispose() {
     clearBusTimer()
     clearSeesawTimer()
+    clearBowlTimer()
     cancelSpeech()
   }
 
@@ -889,9 +1118,11 @@ export function createAppSession(
     openBus,
     openPractice,
     openSeesaw,
+    openBowl,
     switchPlay,
     anotherBus,
     anotherSeesaw,
+    anotherBowl,
     requestReset,
     cancelReset,
     confirmReset,
@@ -901,6 +1132,11 @@ export function createAppSession(
     seesawTapConfirm,
     seesawHelp,
     flushSeesawMove,
+    bowlTapDigit,
+    bowlTapDelete,
+    bowlTapConfirm,
+    bowlHelp,
+    flushBowlMove,
     busTapWaiting,
     busTapSeat,
     busTapOff,

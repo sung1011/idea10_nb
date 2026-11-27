@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PLAY_OPTIONS, type PlayKind } from '../logic/playKind'
+import { isPlayKind, PLAY_OPTIONS, type PlayKind } from '../logic/playKind'
 
 defineProps<{
   value: PlayKind
@@ -11,7 +11,7 @@ const emit = defineEmits<{
 
 function onChange(event: Event) {
   const next = (event.target as HTMLSelectElement).value
-  if (next === 'practice' || next === 'bus' || next === 'seesaw') {
+  if (isPlayKind(next)) {
     emit('change', next)
   }
 }

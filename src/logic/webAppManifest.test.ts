@@ -77,12 +77,12 @@ describe('主屏幕清单与图标', () => {
   })
 })
 
-describe('0.6.10 版本检测', () => {
-  it('旧构建 0.6.9 遇到远端 0.6.10 会提示；已是 0.6.10 不提示', () => {
+describe('0.6.11 版本检测', () => {
+  it('旧构建 0.6.10 遇到远端 0.6.11 会提示；已是 0.6.11 不提示', () => {
     const entries = parseVersions(JSON.parse(readFileSync(join(root, 'public/versions.json'), 'utf8')))
-    expect(entries[0]?.version).toBe('0.6.10')
+    expect(entries[0]?.version).toBe('0.6.11')
     const groups = groupVersions(entries)
-    expect(pendingGroups(groups, '0.6.9').map((item) => item.version)[0]).toBe('0.6.10')
-    expect(pendingGroups(groups, '0.6.10')).toEqual([])
+    expect(pendingGroups(groups, '0.6.10').map((item) => item.version)[0]).toBe('0.6.11')
+    expect(pendingGroups(groups, '0.6.11')).toEqual([])
   })
 })

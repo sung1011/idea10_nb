@@ -15,6 +15,7 @@ import {
   type StationPlan,
   type StopKind,
 } from '../logic/busRoute'
+import { bowlForDisk, type BowlPlay } from '../logic/bowlMove'
 import { ROUND_SIZE, type Mode, type Op, type Problem } from '../logic/makeProblem'
 import { isLegacyStickerEmoji, isStickerId, type StickerId } from '../logic/stickerPool'
 import { seesawForDisk, type SeesawPlay } from '../logic/seesawMove'
@@ -22,7 +23,15 @@ import { seesawRight } from '../logic/seesawProblem'
 
 // seesawRight 必须仍是 a：v3 档 play.right 存可变个数，idle 原点是 a 不是 answer。
 
-export type GameView = 'practice' | 'complete' | 'bus' | 'busComplete' | 'seesaw' | 'seesawComplete'
+export type GameView =
+  | 'practice'
+  | 'complete'
+  | 'bus'
+  | 'busComplete'
+  | 'seesaw'
+  | 'seesawComplete'
+  | 'bowl'
+  | 'bowlComplete'
 
 export type PracticeSnapshot = {
   mode: Mode
@@ -45,8 +54,10 @@ export type PlaySnapshot = {
   practice: PracticeSnapshot
   bus: BusPlay | null
   seesaw: SeesawPlay | null
+  bowl: BowlPlay | null
   busSticker?: StickerId
   seesawSticker?: StickerId
+  bowlSticker?: StickerId
 }
 
 const ANIMAL_KINDS: AnimalKind[] = ['cat', 'rabbit', 'bear', 'bird', 'frog']
@@ -84,7 +95,9 @@ function isGameView(value: unknown): value is GameView {
     value === 'bus' ||
     value === 'busComplete' ||
     value === 'seesaw' ||
-    value === 'seesawComplete'
+    value === 'seesawComplete' ||
+    value === 'bowl' ||
+    value === 'bowlComplete'
   )
 }
 
@@ -335,6 +348,56 @@ export function emptyPractice(mode: Mode, problems: Problem[], stickerEmoji: str
   }
 }
 
+function parseBowlMotion(value: unknown): BowlPlay['motion'] {
+  if (value === 'idle' || value === 'cheer' || value === 'shake') return value
+  return 'idle'
+}
+
+function parseBowl(raw: unknown, _mode: Mode): BowlPlay | null {
+  if (raw == null) return null
+  if (!isRecord(raw)) return null
+  if (!Array.isArray(raw.problems) || raw.problems.length !== ROUND_SIZE) return null
+  const problems: Problem[] = []
+  const keys = new Set<string>()
+  for (const item of raw.problems) {
+    const problem = parseProblem(item, 'mix')
+    if (!problem) return null
+    const key = `${problem.a}${problem.op}${problem.b}`
+    if (keys.has(key)) return null
+    keys.add(key)
+    problems.push(problem)
+  }
+  const settled = raw.settled === true
+  const index = intIn(raw.index, 0, ROUND_SIZE - 1)
+  if (index == null) return null
+  if (typeof raw.input !== 'string' || raw.input.length > 2 || !/^\d*$/.test(raw.input)) return null
+  const wrongOnce = bools(raw.wrongOnce, ROUND_SIZE)
+  const hintOnce = bools(raw.hintOnce, ROUND_SIZE)
+  if (!wrongOnce || !hintOnce) return null
+  const firstTryThisRound = intIn(raw.firstTryThisRound, 0, ROUND_SIZE)
+  const hintThisRound = intIn(raw.hintThisRound, 0, ROUND_SIZE)
+  if (firstTryThisRound == null || hintThisRound == null) return null
+  if (raw.accounted !== true && raw.accounted !== false) return null
+  if (raw.locked !== true && raw.locked !== false) return null
+  if (raw.outcome !== '' && raw.outcome !== 'correct' && raw.outcome !== 'wrong') return null
+  const play: BowlPlay = {
+    problems,
+    index,
+    input: raw.input,
+    motion: parseBowlMotion(raw.motion),
+    outcome: raw.outcome,
+    moving: raw.moving === true,
+    settled,
+    accounted: raw.accounted,
+    locked: raw.locked,
+    wrongOnce,
+    hintOnce,
+    firstTryThisRound,
+    hintThisRound,
+  }
+  return bowlForDisk(play)
+}
+
 function parseSeesawMotion(value: unknown): SeesawPlay['motion'] {
   if (
     value === 'idle' ||
@@ -349,14 +412,14 @@ function parseSeesawMotion(value: unknown): SeesawPlay['motion'] {
   return 'idle'
 }
 
-function parseSeesaw(raw: unknown, mode: Mode): SeesawPlay | null {
+function parseSeesaw(raw: unknown, _mode: Mode): SeesawPlay | null {
   if (raw == null) return null
   if (!isRecord(raw)) return null
   if (!Array.isArray(raw.problems) || raw.problems.length !== ROUND_SIZE) return null
   const problems: Problem[] = []
   const keys = new Set<string>()
   for (const item of raw.problems) {
-    const problem = parseProblem(item, mode)
+    const problem = parseProblem(item, 'mix')
     if (!problem) return null
     const key = `${problem.a}${problem.op}${problem.b}`
     if (keys.has(key)) return null
@@ -414,8 +477,15 @@ export function parsePlay(raw: unknown, mode: Mode): PlaySnapshot | null {
   if (raw.seesaw != null) {
     seesaw = parseSeesaw(raw.seesaw, mode)
   }
+  let bowl: BowlPlay | null = null
+  if (raw.bowl != null) {
+    bowl = parseBowl(raw.bowl, mode)
+  }
   let view = raw.view
   if ((view === 'seesaw' || view === 'seesawComplete') && !seesaw) {
+    view = practice.settled ? 'complete' : 'practice'
+  }
+  if ((view === 'bowl' || view === 'bowlComplete') && !bowl) {
     view = practice.settled ? 'complete' : 'practice'
   }
   if ((view === 'bus' || view === 'busComplete') && !bus) return null
@@ -423,15 +493,20 @@ export function parsePlay(raw: unknown, mode: Mode): PlaySnapshot | null {
   if (view === 'busComplete' && bus && !bus.settled) return null
   if (view === 'seesawComplete' && seesaw && !seesaw.settled) view = 'seesaw'
   if (view === 'seesaw' && seesaw?.settled) view = 'seesawComplete'
+  if (view === 'bowlComplete' && bowl && !bowl.settled) view = 'bowl'
+  if (view === 'bowl' && bowl?.settled) view = 'bowlComplete'
   const busSticker = isStickerId(raw.busSticker) ? raw.busSticker : undefined
   const seesawSticker = isStickerId(raw.seesawSticker) ? raw.seesawSticker : undefined
+  const bowlSticker = isStickerId(raw.bowlSticker) ? raw.bowlSticker : undefined
   return {
     view,
     practice,
     bus,
     seesaw,
+    bowl,
     ...(busSticker ? { busSticker } : {}),
     ...(seesawSticker ? { seesawSticker } : {}),
+    ...(bowlSticker ? { bowlSticker } : {}),
   }
 }
 
@@ -480,7 +555,9 @@ export function gameViewFrom(
     source === 'bus' ||
     source === 'busComplete' ||
     source === 'seesaw' ||
-    source === 'seesawComplete'
+    source === 'seesawComplete' ||
+    source === 'bowl' ||
+    source === 'bowlComplete'
   ) {
     return source
   }
